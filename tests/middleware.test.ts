@@ -864,6 +864,39 @@ describe("idempotency middleware", () => {
 			expect(body.path).toBe("/api/ctx-check");
 			expect(body.method).toBe("POST");
 		});
+
+		it("problemResponse can be used as fallback in onError", async () => {
+			const { problemResponse } = await import("../src/index.js");
+			const { app } = createApp({
+				required: true,
+				onError: (error) => {
+					if (error.code === "MISSING_KEY") {
+						return new Response(JSON.stringify({ custom: "missing" }), {
+							status: 400,
+							headers: { "Content-Type": "application/json" },
+						});
+					}
+					return problemResponse(error);
+				},
+			});
+
+			// MISSING_KEY → custom response
+			const res1 = await app.request("/api/text", { method: "POST" });
+			expect(res1.status).toBe(400);
+			expect(res1.headers.get("Content-Type")).toBe("application/json");
+			const body1 = await res1.json();
+			expect(body1.custom).toBe("missing");
+
+			// KEY_TOO_LONG → default problemResponse fallback
+			const res2 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "x".repeat(300) },
+			});
+			expect(res2.status).toBe(400);
+			expect(res2.headers.get("Content-Type")).toBe("application/problem+json");
+			const body2 = await res2.json();
+			expect(body2.code).toBe("KEY_TOO_LONG");
+		});
 	});
 
 	// Security: store key injection prevention
