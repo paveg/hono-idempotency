@@ -67,6 +67,56 @@ idempotency({
 
   // Custom fingerprint function (default: SHA-256 of method + path + body)
   fingerprint: (c) => `${c.req.method}:${c.req.path}`,
+
+  // Skip idempotency for specific requests
+  skipRequest: (c) => c.req.path === "/api/health",
+
+  // Namespace store keys for multi-tenant isolation
+  cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+
+  // Custom error response handler (default: RFC 9457 Problem Details)
+  onError: (error, c) => c.json({ error: error.title }, error.status),
+});
+```
+
+### skipRequest
+
+Skip idempotency processing for specific requests. Useful for health checks or internal endpoints.
+
+```ts
+idempotency({
+  store: memoryStore(),
+  skipRequest: (c) => c.req.path === "/api/health",
+});
+```
+
+### cacheKeyPrefix
+
+Namespace store keys to isolate idempotency state between tenants or environments.
+
+```ts
+idempotency({
+  store: memoryStore(),
+  // Static prefix
+  cacheKeyPrefix: "production",
+
+  // Or dynamic per-request prefix
+  cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+});
+```
+
+### onError
+
+Override the default RFC 9457 error responses with a custom handler.
+
+```ts
+import type { ProblemDetail } from "hono-idempotency";
+
+idempotency({
+  store: memoryStore(),
+  onError: (error: ProblemDetail, c) => {
+    return c.json({ code: error.status, message: error.title }, error.status);
+  },
 });
 ```
 
