@@ -48,9 +48,7 @@
 			}
 		}
 	},
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"scripts": {
 		"build": "tsup",
 		"test": "vitest run",
@@ -79,6 +77,10 @@
 		"url": "https://github.com/paveg/hono-idempotency/issues"
 	},
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
 	"engines": {
 		"node": ">=20"
 	},
@@ -98,10 +100,6 @@
 	},
 	"packageManager": "pnpm@10.14.0",
 	"pnpm": {
-		"onlyBuiltDependencies": [
-			"@biomejs/biome",
-			"esbuild",
-			"lefthook"
-		]
+		"onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "lefthook"]
 	}
 }
