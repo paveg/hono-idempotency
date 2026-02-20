@@ -66,6 +66,11 @@
 		"cloudflare-workers",
 		"edge"
 	],
+	"author": "Ryota Ikezawa",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/paveg/hono-idempotency.git"
+	},
 	"license": "MIT",
 	"peerDependencies": {
 		"hono": ">=4.0.0"

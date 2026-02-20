@@ -1,5 +1,11 @@
-import type { Context } from "hono";
+import type { Context, Env } from "hono";
 import type { IdempotencyStore } from "./stores/types.js";
+
+export interface IdempotencyEnv extends Env {
+	Variables: {
+		idempotencyKey: string;
+	};
+}
 
 export interface StoredResponse {
 	status: number;

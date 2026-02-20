@@ -1,7 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { IdempotencyErrors, problemResponse } from "./errors.js";
 import { generateFingerprint } from "./fingerprint.js";
-import type { IdempotencyOptions, StoredResponse } from "./types.js";
+import type { IdempotencyEnv, IdempotencyOptions, StoredResponse } from "./types.js";
 
 const DEFAULT_METHODS = ["POST", "PATCH"];
 const DEFAULT_MAX_KEY_LENGTH = 256;
@@ -16,7 +16,7 @@ export function idempotency(options: IdempotencyOptions) {
 		maxKeyLength = DEFAULT_MAX_KEY_LENGTH,
 	} = options;
 
-	return createMiddleware(async (c, next) => {
+	return createMiddleware<IdempotencyEnv>(async (c, next) => {
 		if (!methods.includes(c.req.method)) {
 			return next();
 		}
