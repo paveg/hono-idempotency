@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.2.0
+
+### Minor Changes
+
+- [#15](https://github.com/paveg/hono-idempotency/pull/15) [`6662fb2`](https://github.com/paveg/hono-idempotency/commit/6662fb2957d478b07c2f530b08df2993139ca615) Thanks [@paveg](https://github.com/paveg)! - Add Cloudflare KV and D1 store implementations, memory store GC, CI coverage enforcement
+
 ## 0.1.1
 
 ### Patch Changes
