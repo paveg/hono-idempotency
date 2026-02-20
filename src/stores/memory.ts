@@ -5,6 +5,8 @@ const DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 interface MemoryStoreOptions {
 	ttl?: number;
+	/** Maximum number of entries. Oldest entries are evicted when exceeded. */
+	maxSize?: number;
 }
 
 export interface MemoryStore extends IdempotencyStore {
@@ -14,6 +16,7 @@ export interface MemoryStore extends IdempotencyStore {
 
 export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 	const ttl = options.ttl ?? DEFAULT_TTL;
+	const maxSize = options.maxSize;
 	const map = new Map<string, IdempotencyRecord>();
 
 	const isExpired = (record: IdempotencyRecord): boolean => {
@@ -50,6 +53,12 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 				return false;
 			}
 			map.set(key, record);
+			if (maxSize !== undefined) {
+				while (map.size > maxSize) {
+					const oldest = map.keys().next().value;
+					if (oldest !== undefined) map.delete(oldest);
+				}
+			}
 			return true;
 		},
 

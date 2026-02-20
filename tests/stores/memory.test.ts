@@ -137,6 +137,41 @@ describe("memoryStore", () => {
 		expect(await store.get("alive-2")).toBeDefined();
 	});
 
+	// maxSize: evicts oldest entries when capacity is exceeded
+	it("evicts oldest entry when maxSize is reached", async () => {
+		const store = memoryStore({ maxSize: 2 });
+
+		await store.lock("a", makeRecord("a"));
+		await store.lock("b", makeRecord("b"));
+		expect(store.size).toBe(2);
+
+		// Third insert triggers eviction of oldest ("a")
+		await store.lock("c", makeRecord("c"));
+		expect(store.size).toBe(2);
+		expect(await store.get("a")).toBeUndefined();
+		expect(await store.get("b")).toBeDefined();
+		expect(await store.get("c")).toBeDefined();
+	});
+
+	it("does not evict when under maxSize", async () => {
+		const store = memoryStore({ maxSize: 10 });
+
+		await store.lock("a", makeRecord("a"));
+		await store.lock("b", makeRecord("b"));
+		expect(store.size).toBe(2);
+		expect(await store.get("a")).toBeDefined();
+		expect(await store.get("b")).toBeDefined();
+	});
+
+	it("unlimited entries when maxSize is not set", async () => {
+		const store = memoryStore();
+
+		for (let i = 0; i < 100; i++) {
+			await store.lock(`key-${i}`, makeRecord(`key-${i}`));
+		}
+		expect(store.size).toBe(100);
+	});
+
 	it("uses default TTL of 24 hours", async () => {
 		const store = memoryStore();
 		const record = makeRecord("key-1");
