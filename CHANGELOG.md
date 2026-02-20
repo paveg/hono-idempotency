@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.1.1
+
+### Patch Changes
+
+- [`322bab8`](https://github.com/paveg/hono-idempotency/commit/322bab82be6c86e3c50cf6ce84aec9920fd61316) Thanks [@paveg](https://github.com/paveg)! - Fix release workflow: restore NPM_TOKEN auth, auto-format Version PR with biome
+
 ## 0.1.0
 
 ### Minor Changes
