@@ -1029,6 +1029,46 @@ describe("idempotency middleware", () => {
 		});
 	});
 
+	// Edge case: special characters in idempotency key
+	it("handles special characters in key correctly", async () => {
+		const { app } = createApp();
+		// Latin1-safe but includes characters that need encoding (colons, slashes, spaces)
+		const key = "r\u00E9q/key:with spaces&special=chars";
+
+		const res1 = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res1.status).toBe(200);
+
+		const res2 = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.status).toBe(200);
+		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
+	// Edge case: POST with empty body
+	it("handles POST with empty body deterministically", async () => {
+		const { app } = createApp();
+		const key = "key-empty-body";
+
+		const res1 = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res1.status).toBe(200);
+
+		// Same key, same empty body → replayed
+		const res2 = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.status).toBe(200);
+		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
 	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
 		let callCount = 0;
