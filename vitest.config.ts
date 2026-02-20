@@ -6,12 +6,7 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			include: ["src/**/*.ts"],
-			exclude: [
-				"src/index.ts",
-				"src/types.ts",
-				"src/stores/types.ts",
-				"src/stores/cloudflare-d1.ts",
-			],
+			exclude: ["src/index.ts", "src/types.ts", "src/stores/types.ts"],
 			thresholds: {
 				statements: 100,
 				branches: 100,
