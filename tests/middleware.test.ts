@@ -427,4 +427,97 @@ describe("idempotency middleware", () => {
 			expect(conflictRes.headers.get("Content-Type")).toContain("application/problem+json");
 		});
 	});
+
+	// Response headers preserved on replay
+	it("preserves Content-Type header on replayed response", async () => {
+		const { app } = createApp();
+		const key = "key-content-type";
+
+		const res1 = await app.request("/api/json", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		const originalCT = res1.headers.get("Content-Type");
+		expect(originalCT).toContain("application/json");
+
+		const res2 = await app.request("/api/json", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.headers.get("Content-Type")).toBe(originalCT);
+		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
+	// Custom fingerprint function
+	it("uses custom fingerprint function when provided", async () => {
+		const store = memoryStore();
+		const app = new Hono();
+		app.use(
+			"/api/*",
+			idempotency({
+				store,
+				// Only use method + path, ignore body
+				fingerprint: (c) => `${c.req.method}:${c.req.path}`,
+			}),
+		);
+		app.post("/api/custom", (c) => c.json({ ok: true }));
+
+		const key = "key-custom-fp";
+
+		// First request with body A
+		const res1 = await app.request("/api/custom", {
+			method: "POST",
+			headers: {
+				"Idempotency-Key": key,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ a: 1 }),
+		});
+		expect(res1.status).toBe(200);
+
+		// Same key, different body — should still return cached (custom fp ignores body)
+		const res2 = await app.request("/api/custom", {
+			method: "POST",
+			headers: {
+				"Idempotency-Key": key,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ a: 2 }),
+		});
+		expect(res2.status).toBe(200);
+		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
+	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
+	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
+		let callCount = 0;
+		const store = memoryStore();
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store }));
+		app.post("/api/flaky", (c) => {
+			callCount++;
+			if (callCount === 1) {
+				return c.json({ error: "temporary failure" }, 503);
+			}
+			return c.json({ success: true }, 200);
+		});
+
+		const key = "key-e4-retry";
+
+		// First call: 503 error
+		const res1 = await app.request("/api/flaky", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res1.status).toBe(503);
+
+		// Retry with same key: handler runs again, returns 200
+		const res2 = await app.request("/api/flaky", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.status).toBe(200);
+		expect(await res2.json()).toEqual({ success: true });
+		expect(callCount).toBe(2);
+	});
 });
