@@ -156,6 +156,28 @@ app.use("/api/*", async (c, next) => {
 
 > **Note:** KV is eventually consistent. In rare cases, concurrent requests to different edge locations may both acquire the lock. This is acceptable for most idempotency use cases.
 
+### Cloudflare D1 Store
+
+For Cloudflare Workers with D1. Uses SQL for strong consistency. Table is created automatically.
+
+```ts
+import { d1Store } from "hono-idempotency/stores/cloudflare-d1";
+
+type Bindings = { IDEMPOTENCY_DB: D1Database };
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.use("/api/*", async (c, next) => {
+  const store = d1Store({
+    database: c.env.IDEMPOTENCY_DB,
+    tableName: "idempotency_keys", // default
+  });
+  return idempotency({ store })(c, next);
+});
+```
+
+> **Note:** D1 provides strong consistency, making `lock()` reliable for concurrent request protection. Consider adding a scheduled cleanup for expired rows.
+
 ### Custom Store
 
 Implement the `IdempotencyStore` interface:
