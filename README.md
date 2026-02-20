@@ -1,0 +1,128 @@
+# hono-idempotency
+
+Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) compliant.
+
+## Features
+
+- Idempotency-Key header support for POST/PATCH (configurable)
+- Request fingerprinting (SHA-256) prevents key reuse with different payloads
+- Concurrent request protection with optimistic locking
+- RFC 9457 Problem Details error responses
+- Replayed responses include `Idempotency-Replayed: true` header
+- Non-2xx responses are not cached (Stripe pattern — allows client retry)
+- Pluggable store interface (memory, Cloudflare KV, Cloudflare D1)
+- Works on Cloudflare Workers, Node.js, Deno, Bun, and any Web Standards runtime
+
+## Install
+
+```bash
+npm install hono-idempotency
+```
+
+## Quick Start
+
+```ts
+import { Hono } from "hono";
+import { idempotency } from "hono-idempotency";
+import { memoryStore } from "hono-idempotency/stores/memory";
+
+const app = new Hono();
+
+app.use("/api/*", idempotency({ store: memoryStore() }));
+
+app.post("/api/payments", (c) => {
+  // This handler only runs once per unique Idempotency-Key.
+  // Retries with the same key return the cached response.
+  return c.json({ id: "pay_123", status: "succeeded" }, 201);
+});
+```
+
+Client usage:
+
+```bash
+curl -X POST http://localhost:3000/api/payments \
+  -H "Idempotency-Key: unique-request-id-123" \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 1000}'
+```
+
+## Options
+
+```ts
+idempotency({
+  // Required: storage backend
+  store: memoryStore(),
+
+  // Header name (default: "Idempotency-Key")
+  headerName: "Idempotency-Key",
+
+  // Return 400 if header is missing (default: false)
+  required: false,
+
+  // HTTP methods to apply idempotency (default: ["POST", "PATCH"])
+  methods: ["POST", "PATCH"],
+
+  // Maximum key length (default: 256)
+  maxKeyLength: 256,
+
+  // Custom fingerprint function (default: SHA-256 of method + path + body)
+  fingerprint: (c) => `${c.req.method}:${c.req.path}`,
+});
+```
+
+## Stores
+
+### Memory Store
+
+Built-in, suitable for single-instance deployments and development.
+
+```ts
+import { memoryStore } from "hono-idempotency/stores/memory";
+
+const store = memoryStore({
+  ttl: 24 * 60 * 60 * 1000, // 24 hours (default)
+});
+```
+
+### Custom Store
+
+Implement the `IdempotencyStore` interface:
+
+```ts
+import type { IdempotencyStore } from "hono-idempotency";
+
+const customStore: IdempotencyStore = {
+  async get(key) { /* ... */ },
+  async lock(key, record) { /* return false if already locked */ },
+  async complete(key, response) { /* ... */ },
+  async delete(key) { /* ... */ },
+};
+```
+
+## Error Responses
+
+All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) with `Content-Type: application/problem+json`.
+
+| Status | Type | When |
+|--------|------|------|
+| 400 | `/errors/missing-key` | `required: true` and no header |
+| 400 | `/errors/key-too-long` | Key exceeds `maxKeyLength` |
+| 409 | `/errors/conflict` | Concurrent request with same key |
+| 422 | `/errors/fingerprint-mismatch` | Same key, different request body |
+
+## Accessing the Key in Handlers
+
+The middleware sets `idempotencyKey` on the Hono context:
+
+```ts
+import type { IdempotencyEnv } from "hono-idempotency";
+
+app.post("/api/payments", (c: Context<IdempotencyEnv>) => {
+  const key = c.get("idempotencyKey");
+  return c.json({ idempotencyKey: key });
+});
+```
+
+## License
+
+MIT

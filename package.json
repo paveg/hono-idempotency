@@ -71,6 +71,10 @@
 		"type": "git",
 		"url": "https://github.com/paveg/hono-idempotency.git"
 	},
+	"homepage": "https://github.com/paveg/hono-idempotency#readme",
+	"bugs": {
+		"url": "https://github.com/paveg/hono-idempotency/issues"
+	},
 	"license": "MIT",
 	"peerDependencies": {
 		"hono": ">=4.0.0"
