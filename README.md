@@ -114,9 +114,18 @@ idempotency({
 });
 ```
 
+> **Note:** The callback receives Hono's base `Context`, so accessing typed variables (e.g., `c.get("userId")`) requires a cast: `c.get("userId") as string`.
+
 ### onError
 
-Override the default RFC 9457 error responses with a custom handler.
+Override the default RFC 9457 error responses with a custom handler. Each error includes a `code` field for programmatic identification:
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `MISSING_KEY` | 400 | `required: true` and no header |
+| `KEY_TOO_LONG` | 400 | Key exceeds `maxKeyLength` |
+| `CONFLICT` | 409 | Concurrent request with same key |
+| `FINGERPRINT_MISMATCH` | 422 | Same key, different request body |
 
 ```ts
 import type { ProblemDetail } from "hono-idempotency";
@@ -124,7 +133,10 @@ import type { ProblemDetail } from "hono-idempotency";
 idempotency({
   store: memoryStore(),
   onError: (error: ProblemDetail, c) => {
-    return c.json({ code: error.status, message: error.title }, error.status);
+    if (error.code === "FINGERPRINT_MISMATCH") {
+      return c.json({ error: "Request body changed" }, 422);
+    }
+    return c.json({ code: error.code, message: error.title }, error.status);
   },
 });
 ```
@@ -190,7 +202,29 @@ app.use("/api/*", async (c, next) => {
 });
 ```
 
-> **Note:** D1 provides strong consistency, making `lock()` reliable for concurrent request protection. Consider adding a scheduled cleanup for expired rows.
+> **Note:** D1 provides strong consistency, making `lock()` reliable for concurrent request protection.
+
+### Purging Expired Records
+
+All stores expose a `purge()` method that physically removes expired records. This is especially important for D1, where expired rows are logically hidden but remain in storage.
+
+```ts
+// Cloudflare Workers: use waitUntil for non-blocking cleanup
+app.post("/api/payments", async (c) => {
+  c.executionCtx.waitUntil(store.purge());
+  return c.json({ ok: true });
+});
+
+// Or use a Scheduled Worker for periodic cleanup
+export default {
+  async scheduled(event, env, ctx) {
+    const store = d1Store({ database: env.IDEMPOTENCY_DB });
+    ctx.waitUntil(store.purge());
+  },
+};
+```
+
+> **Note:** KV store's `purge()` is a no-op — KV handles expiration automatically via `expirationTtl`.
 
 ### Custom Store
 
@@ -204,6 +238,7 @@ const customStore: IdempotencyStore = {
   async lock(key, record) { /* return false if already locked */ },
   async complete(key, response) { /* ... */ },
   async delete(key) { /* ... */ },
+  async purge() { /* return number of deleted records */ },
 };
 ```
 

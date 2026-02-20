@@ -135,6 +135,15 @@ describe("kvStore", () => {
 		expect(capturedOpts?.expirationTtl).toBe(86400);
 	});
 
+	it("purge() returns 0 (KV handles expiration automatically)", async () => {
+		const kv = createMockKV();
+		const store = kvStore({ namespace: kv as never });
+
+		await store.lock("key-1", makeRecord("key-1"));
+		const purged = await store.purge();
+		expect(purged).toBe(0);
+	});
+
 	it("complete() does nothing for non-existent key", async () => {
 		const kv = createMockKV();
 		const store = kvStore({ namespace: kv as never });

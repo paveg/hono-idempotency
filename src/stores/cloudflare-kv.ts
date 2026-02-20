@@ -46,5 +46,10 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 		async delete(key) {
 			await kv.delete(key);
 		},
+
+		async purge() {
+			// KV handles expiration automatically via expirationTtl — no manual purge needed
+			return 0;
+		},
 	};
 }
