@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.2.1
+
+### Patch Changes
+
+- [#20](https://github.com/paveg/hono-idempotency/pull/20) [`374ad55`](https://github.com/paveg/hono-idempotency/commit/374ad557639a5712786ac6fe7b36ae4d984a3d9e) Thanks [@paveg](https://github.com/paveg)! - Add TTL support and table name validation to D1 store
+
 ## 0.2.0
 
 ### Minor Changes
