@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.3.0
+
+### Minor Changes
+
+- [#28](https://github.com/paveg/hono-idempotency/pull/28) [`ce6e957`](https://github.com/paveg/hono-idempotency/commit/ce6e95771ee3dd0ccec262a00b5b58efe2aba0d6) Thanks [@paveg](https://github.com/paveg)! - Add `maxSize` option to memory store, fix `IdempotencyEnv` type safety, export `MemoryStore` type
+
 ## 0.2.1
 
 ### Patch Changes
