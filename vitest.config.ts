@@ -13,6 +13,12 @@ export default defineConfig({
 				"src/stores/cloudflare-kv.ts",
 				"src/stores/cloudflare-d1.ts",
 			],
+			thresholds: {
+				statements: 100,
+				branches: 100,
+				functions: 100,
+				lines: 100,
+			},
 		},
 	},
 });
