@@ -7,7 +7,12 @@ interface MemoryStoreOptions {
 	ttl?: number;
 }
 
-export function memoryStore(options: MemoryStoreOptions = {}): IdempotencyStore {
+export interface MemoryStore extends IdempotencyStore {
+	/** Number of entries currently in the store (including expired but not yet swept). */
+	readonly size: number;
+}
+
+export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 	const ttl = options.ttl ?? DEFAULT_TTL;
 	const map = new Map<string, IdempotencyRecord>();
 
@@ -15,7 +20,19 @@ export function memoryStore(options: MemoryStoreOptions = {}): IdempotencyStore 
 		return Date.now() - record.createdAt >= ttl;
 	};
 
+	const sweep = (): void => {
+		for (const [key, record] of map) {
+			if (isExpired(record)) {
+				map.delete(key);
+			}
+		}
+	};
+
 	return {
+		get size() {
+			return map.size;
+		},
+
 		async get(key) {
 			const record = map.get(key);
 			if (!record) return undefined;
@@ -27,6 +44,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): IdempotencyStore 
 		},
 
 		async lock(key, record) {
+			sweep();
 			const existing = map.get(key);
 			if (existing && !isExpired(existing)) {
 				return false;
