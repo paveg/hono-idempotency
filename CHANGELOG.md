@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.5.1
+
+### Patch Changes
+
+- [`9928b0d`](https://github.com/paveg/hono-idempotency/commit/9928b0d070e2927b9180f9996cd2ada26fade989) Thanks [@paveg](https://github.com/paveg)! - Export `MemoryStoreOptions` type for API consistency, add `sideEffects: false` for tree-shaking, and add `isolatedModules` for esbuild compatibility
+
 ## 0.5.0
 
 ### Minor Changes
