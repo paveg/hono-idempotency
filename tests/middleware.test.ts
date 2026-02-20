@@ -836,6 +836,58 @@ describe("idempotency middleware", () => {
 		expect(res2.headers.get("Set-Cookie")).toBeNull();
 	});
 
+	// Custom headerName
+	describe("headerName", () => {
+		it("uses custom header name for key extraction", async () => {
+			const { app } = createApp({ headerName: "X-Request-Id" });
+			const key = "key-custom-header";
+
+			const res1 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "X-Request-Id": key },
+			});
+			expect(res1.status).toBe(200);
+
+			const res2 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "X-Request-Id": key },
+			});
+			expect(res2.status).toBe(200);
+			expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+		});
+
+		it("ignores default Idempotency-Key when custom headerName is set", async () => {
+			let callCount = 0;
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, headerName: "X-Request-Id" }));
+			app.post("/api/counter", (c) => {
+				callCount++;
+				return c.json({ count: callCount });
+			});
+
+			// Default header ignored — each request is fresh
+			const res1 = await app.request("/api/counter", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-ignored" },
+			});
+			const res2 = await app.request("/api/counter", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-ignored" },
+			});
+
+			expect(callCount).toBe(2);
+			expect(res2.headers.get("Idempotency-Replayed")).toBeNull();
+		});
+
+		it("returns 400 for missing custom header when required", async () => {
+			const { app } = createApp({ headerName: "X-Request-Id", required: true });
+
+			const res = await app.request("/api/text", { method: "POST" });
+			expect(res.status).toBe(400);
+		});
+	});
+
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
 	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
 		let callCount = 0;
