@@ -42,7 +42,10 @@ export function idempotency(options: IdempotencyOptions) {
 			? await customFingerprint(c)
 			: await generateFingerprint(c.req.method, c.req.path, body);
 
-		const existing = await store.get(key);
+		// Namespace store key by method:path to avoid cross-endpoint collisions
+		const storeKey = `${c.req.method}:${c.req.path}:${key}`;
+
+		const existing = await store.get(storeKey);
 
 		if (existing) {
 			if (existing.status === "processing") {
@@ -60,7 +63,7 @@ export function idempotency(options: IdempotencyOptions) {
 			}
 
 			if (existing.response) {
-				return replayResponse(c, existing.response);
+				return replayResponse(existing.response);
 			}
 		}
 
@@ -71,7 +74,7 @@ export function idempotency(options: IdempotencyOptions) {
 			createdAt: Date.now(),
 		};
 
-		const locked = await store.lock(key, record);
+		const locked = await store.lock(storeKey, record);
 		if (!locked) {
 			const error = IdempotencyErrors.conflict();
 			return c.json(error, {
@@ -85,14 +88,14 @@ export function idempotency(options: IdempotencyOptions) {
 		try {
 			await next();
 		} catch (err) {
-			await store.delete(key);
+			await store.delete(storeKey);
 			throw err;
 		}
 
 		const res = c.res;
 		if (!res.ok) {
 			// Non-2xx: delete key (Stripe pattern) so client can retry
-			await store.delete(key);
+			await store.delete(storeKey);
 			return;
 		}
 
@@ -108,7 +111,7 @@ export function idempotency(options: IdempotencyOptions) {
 			body: resBody,
 		};
 
-		await store.complete(key, storedResponse);
+		await store.complete(storeKey, storedResponse);
 
 		// Rebuild response since we consumed body
 		c.res = new Response(resBody, {
@@ -118,7 +121,7 @@ export function idempotency(options: IdempotencyOptions) {
 	});
 }
 
-function replayResponse(c: { header: (k: string, v: string) => void }, stored: StoredResponse) {
+function replayResponse(stored: StoredResponse) {
 	const headers = new Headers(stored.headers);
 	headers.set("Idempotency-Replayed", "true");
 

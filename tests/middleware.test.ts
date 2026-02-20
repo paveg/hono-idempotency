@@ -204,6 +204,7 @@ describe("idempotency middleware", () => {
 		app.onError((err, c) => c.json({ error: err.message }, 500));
 
 		const key = "key-error";
+		const storeKey = `POST:/api/error:${key}`;
 		const res1 = await app.request("/api/error", {
 			method: "POST",
 			headers: { "Idempotency-Key": key },
@@ -211,7 +212,7 @@ describe("idempotency middleware", () => {
 		expect(res1.status).toBe(500);
 
 		// Key should be deleted, so the same key can be used again
-		const record = await store.get(key);
+		const record = await store.get(storeKey);
 		expect(record).toBeUndefined();
 	});
 
@@ -223,13 +224,14 @@ describe("idempotency middleware", () => {
 		app.post("/api/server-error", (c) => c.json({ error: "fail" }, 500));
 
 		const key = "key-500";
+		const storeKey = `POST:/api/server-error:${key}`;
 		const res1 = await app.request("/api/server-error", {
 			method: "POST",
 			headers: { "Idempotency-Key": key },
 		});
 		expect(res1.status).toBe(500);
 
-		const record = await store.get(key);
+		const record = await store.get(storeKey);
 		expect(record).toBeUndefined();
 	});
 
@@ -278,9 +280,10 @@ describe("idempotency middleware", () => {
 		const store = memoryStore();
 		const { app } = createApp({ store });
 		const key = "key-c1";
+		const storeKey = `POST:/api/json:${key}`;
 
 		// Initial: no record
-		expect(await store.get(key)).toBeUndefined();
+		expect(await store.get(storeKey)).toBeUndefined();
 
 		const res1 = await app.request("/api/json", {
 			method: "POST",
@@ -289,7 +292,7 @@ describe("idempotency middleware", () => {
 		expect(res1.status).toBe(200);
 
 		// After first request: record is completed
-		const record = await store.get(key);
+		const record = await store.get(storeKey);
 		expect(record?.status).toBe("completed");
 		expect(record?.response).toBeDefined();
 
@@ -301,6 +304,44 @@ describe("idempotency middleware", () => {
 		expect(res2.status).toBe(200);
 		expect(await res2.json()).toEqual({ message: "ok" });
 		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
+	// Same key on different endpoints → treated as separate requests
+	it("allows same key on different endpoints without conflict", async () => {
+		const { app } = createApp();
+		const key = "key-cross-endpoint";
+
+		const res1 = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res1.status).toBe(200);
+		expect(await res1.text()).toBe("hello");
+
+		const res2 = await app.request("/api/json", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.status).toBe(200);
+		expect(await res2.json()).toEqual({ message: "ok" });
+	});
+
+	// Context access: c.get('idempotencyKey')
+	it("exposes idempotency key via c.get('idempotencyKey')", async () => {
+		const store = memoryStore();
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store }));
+		app.post("/api/context-check", (c) => {
+			const idemKey = c.get("idempotencyKey");
+			return c.json({ key: idemKey });
+		});
+
+		const res = await app.request("/api/context-check", {
+			method: "POST",
+			headers: { "Idempotency-Key": "my-key-123" },
+		});
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ key: "my-key-123" });
 	});
 
 	// E10: Retry-After header on 409
