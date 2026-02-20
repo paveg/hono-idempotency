@@ -12,9 +12,13 @@ Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draf
 - Idempotency-Key header support for POST/PATCH (configurable)
 - Request fingerprinting (SHA-256) prevents key reuse with different payloads
 - Concurrent request protection with optimistic locking
-- RFC 9457 Problem Details error responses
+- RFC 9457 Problem Details error responses with error codes (`MISSING_KEY`, `KEY_TOO_LONG`, `FINGERPRINT_MISMATCH`, `CONFLICT`)
 - Replayed responses include `Idempotency-Replayed: true` header
 - Non-2xx responses are not cached (Stripe pattern — allows client retry)
+- Per-request opt-out via `skipRequest`
+- Multi-tenant key isolation via `cacheKeyPrefix`
+- Custom error responses via `onError`
+- Expired record cleanup via `store.purge()`
 - Pluggable store interface (memory, Cloudflare KV, Cloudflare D1)
 - Works on Cloudflare Workers, Node.js, Deno, Bun, and any Web Standards runtime
 
@@ -246,12 +250,12 @@ const customStore: IdempotencyStore = {
 
 All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) with `Content-Type: application/problem+json`.
 
-| Status | Type | When |
-|--------|------|------|
-| 400 | `/errors/missing-key` | `required: true` and no header |
-| 400 | `/errors/key-too-long` | Key exceeds `maxKeyLength` |
-| 409 | `/errors/conflict` | Concurrent request with same key |
-| 422 | `/errors/fingerprint-mismatch` | Same key, different request body |
+| Status | Code | Type | When |
+|--------|------|------|------|
+| 400 | `MISSING_KEY` | `/errors/missing-key` | `required: true` and no header |
+| 400 | `KEY_TOO_LONG` | `/errors/key-too-long` | Key exceeds `maxKeyLength` |
+| 409 | `CONFLICT` | `/errors/conflict` | Concurrent request with same key |
+| 422 | `FINGERPRINT_MISMATCH` | `/errors/fingerprint-mismatch` | Same key, different request body |
 
 ## Accessing the Key in Handlers
 

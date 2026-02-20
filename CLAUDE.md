@@ -22,7 +22,7 @@ Stripe-style Idempotency-Key middleware for Hono (v0.4.0). IETF draft-ietf-httpa
 - `src/errors.ts` — RFC 9457 Problem Details with `IdempotencyErrorCode` (`MISSING_KEY | KEY_TOO_LONG | FINGERPRINT_MISMATCH | CONFLICT`)
 - `src/fingerprint.ts` — SHA-256 fingerprint via Web Crypto API
 - `src/types.ts` — `IdempotencyOptions`, `IdempotencyEnv`, `IdempotencyRecord`, `StoredResponse`
-- Store key format: `${prefix?}:${method}:${path}:${encodeURIComponent(key)}`
+- Store key format: `${encodeURIComponent(prefix)}:${method}:${path}:${encodeURIComponent(key)}` (prefix omitted when not set)
 
 ### Middleware options
 
@@ -30,13 +30,13 @@ Stripe-style Idempotency-Key middleware for Hono (v0.4.0). IETF draft-ietf-httpa
 |--------|------|-------------|
 | `store` | `IdempotencyStore` | Required. Storage backend |
 | `headerName` | `string` | Header name (default: `Idempotency-Key`) |
-| `fingerprint` | `(c: Context) => string` | Custom fingerprint function |
-| `required` | `boolean` | Require key on all requests |
+| `fingerprint` | `(c: Context) => string \| Promise<string>` | Custom fingerprint (default: SHA-256 of method+path+body) |
+| `required` | `boolean` | Require key on all requests (default: `false`) |
 | `methods` | `string[]` | HTTP methods to apply (default: `["POST", "PATCH"]`) |
 | `maxKeyLength` | `number` | Max key length (default: 256) |
-| `skipRequest` | `(c: Context) => boolean` | Per-request opt-out |
-| `onError` | `(error, c) => Response` | Custom error response |
-| `cacheKeyPrefix` | `string \| (c: Context) => string` | Multi-tenant key prefix |
+| `skipRequest` | `(c: Context) => boolean \| Promise<boolean>` | Per-request opt-out |
+| `onError` | `(error: ProblemDetail, c: Context) => Response \| Promise<Response>` | Custom error response |
+| `cacheKeyPrefix` | `string \| ((c: Context) => string \| Promise<string>)` | Multi-tenant key prefix |
 
 ### Store implementations
 
