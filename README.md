@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/hono-idempotency)](https://www.npmjs.com/package/hono-idempotency)
 [![CI](https://github.com/paveg/hono-idempotency/actions/workflows/ci.yml/badge.svg)](https://github.com/paveg/hono-idempotency/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Devin Wiki](https://img.shields.io/badge/Devin-Wiki-blue)](https://app.devin.ai/org/ryota-ikezawa/wiki/paveg/hono-idempotency)
 
 Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) compliant.
 
@@ -229,6 +230,10 @@ app.post("/api/payments", (c: Context<IdempotencyEnv>) => {
   return c.json({ idempotencyKey: key });
 });
 ```
+
+## Documentation
+
+- [Devin Wiki](https://app.devin.ai/org/ryota-ikezawa/wiki/paveg/hono-idempotency)
 
 ## License
 
