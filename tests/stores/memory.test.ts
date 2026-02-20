@@ -110,6 +110,33 @@ describe("memoryStore", () => {
 		expect(await store.get("nonexistent")).toBeUndefined();
 	});
 
+	// GC: expired entries are removed from the Map, not just hidden by get()
+	it("sweeps expired entries from internal Map on lock()", async () => {
+		const store = memoryStore({ ttl: 1000 });
+
+		await store.lock("old-1", makeRecord("old-1"));
+		await store.lock("old-2", makeRecord("old-2"));
+		expect(store.size).toBe(2);
+
+		vi.advanceTimersByTime(1001);
+
+		// lock() triggers sweep — expired entries are actually deleted from Map
+		await store.lock("new-1", makeRecord("new-1"));
+		expect(store.size).toBe(1);
+	});
+
+	it("does not sweep unexpired entries", async () => {
+		const store = memoryStore({ ttl: 10000 });
+
+		await store.lock("alive-1", makeRecord("alive-1"));
+		vi.advanceTimersByTime(5000);
+		await store.lock("alive-2", makeRecord("alive-2"));
+
+		expect(store.size).toBe(2);
+		expect(await store.get("alive-1")).toBeDefined();
+		expect(await store.get("alive-2")).toBeDefined();
+	});
+
 	it("uses default TTL of 24 hours", async () => {
 		const store = memoryStore();
 		const record = makeRecord("key-1");
