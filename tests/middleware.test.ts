@@ -715,6 +715,32 @@ describe("idempotency middleware", () => {
 			expect(callCount).toBe(2);
 		});
 
+		it("prefix with special characters is encoded in store key", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+				}),
+			);
+			app.post("/api/text", (c) => c.text("hello"));
+
+			const key = "key-special-prefix";
+			const prefix = "org:acme/team:1";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key, "X-Tenant-Id": prefix },
+			});
+
+			// Prefix must be encoded — raw prefix contains `:` and `/`
+			const encoded = `${encodeURIComponent(prefix)}:POST:/api/text:${encodeURIComponent(key)}`;
+			const record = await store.get(encoded);
+			expect(record?.status).toBe("completed");
+		});
+
 		it("no prefix → backwards compatible key format", async () => {
 			const store = memoryStore();
 			const { app } = createApp({ store });
@@ -755,6 +781,30 @@ describe("idempotency middleware", () => {
 			const res = await app.request("/api/text", { method: "POST" });
 			expect(res.status).toBe(400);
 			expect(res.headers.get("Content-Type")).toContain("application/problem+json");
+		});
+
+		it("onError receives Hono context with request info", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					required: true,
+					onError: (_error, c) =>
+						new Response(JSON.stringify({ path: c.req.path, method: c.req.method }), {
+							status: 400,
+							headers: { "Content-Type": "application/json" },
+						}),
+				}),
+			);
+			app.post("/api/ctx-check", (c) => c.text("ok"));
+
+			const res = await app.request("/api/ctx-check", { method: "POST" });
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.path).toBe("/api/ctx-check");
+			expect(body.method).toBe("POST");
 		});
 	});
 

@@ -16,7 +16,11 @@ Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draf
 ## Install
 
 ```bash
+# npm
 npm install hono-idempotency
+
+# pnpm
+pnpm add hono-idempotency
 ```
 
 ## Quick Start
@@ -145,6 +149,7 @@ type Bindings = { IDEMPOTENCY_KV: KVNamespace };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+// Store must be created per-request since KV binding comes from c.env
 app.use("/api/*", async (c, next) => {
   const store = kvStore({
     namespace: c.env.IDEMPOTENCY_KV,
@@ -167,10 +172,13 @@ type Bindings = { IDEMPOTENCY_DB: D1Database };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+// Store must be created per-request since D1 binding comes from c.env.
+// CREATE TABLE IF NOT EXISTS runs each request but is a no-op after the first.
 app.use("/api/*", async (c, next) => {
   const store = d1Store({
     database: c.env.IDEMPOTENCY_DB,
     tableName: "idempotency_keys", // default
+    ttl: 86400, // 24 hours in seconds (default)
   });
   return idempotency({ store })(c, next);
 });
