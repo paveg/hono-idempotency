@@ -623,11 +623,11 @@ describe("idempotency middleware", () => {
 				return c.json({ count: callCount });
 			});
 
-			const res1 = await app.request("/api/async-skip", {
+			await app.request("/api/async-skip", {
 				method: "POST",
 				headers: { "Idempotency-Key": "key-async-skip" },
 			});
-			const res2 = await app.request("/api/async-skip", {
+			await app.request("/api/async-skip", {
 				method: "POST",
 				headers: { "Idempotency-Key": "key-async-skip" },
 			});
@@ -735,7 +735,7 @@ describe("idempotency middleware", () => {
 		it("receives ProblemDetail and returns custom response", async () => {
 			const { app } = createApp({
 				required: true,
-				onError: (error, c) =>
+				onError: (error) =>
 					new Response(JSON.stringify({ custom: true, originalType: error.type }), {
 						status: error.status,
 						headers: { "Content-Type": "application/json" },
@@ -756,6 +756,84 @@ describe("idempotency middleware", () => {
 			expect(res.status).toBe(400);
 			expect(res.headers.get("Content-Type")).toContain("application/problem+json");
 		});
+	});
+
+	// Security: store key injection prevention
+	describe("store key safety", () => {
+		it("crafted prefix+key that would collide without encoding are isolated", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			let callCount = 0;
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+				}),
+			);
+			app.post("/api/data", (c) => {
+				callCount++;
+				return c.json({ count: callCount });
+			});
+
+			// Without encoding, both produce the same store key:
+			// "a:POST:/api/data:x:POST:/api/data:y"
+			// Tenant "a" with key containing the method:path pattern
+			await app.request("/api/data", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "x:POST:/api/data:y",
+					"X-Tenant-Id": "a",
+				},
+			});
+
+			// Tenant "a:POST:/api/data:x" with key "y"
+			const res = await app.request("/api/data", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "y",
+					"X-Tenant-Id": "a:POST:/api/data:x",
+				},
+			});
+
+			// Must be a fresh response — not a replay from tenant "a"
+			expect(res.headers.get("Idempotency-Replayed")).toBeNull();
+			expect(callCount).toBe(2);
+		});
+	});
+
+	// Security: Set-Cookie not replayed
+	it("does not replay Set-Cookie header from cached response", async () => {
+		const store = memoryStore();
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store }));
+		app.post("/api/with-cookie", (c) => {
+			return new Response("ok", {
+				status: 200,
+				headers: {
+					"Content-Type": "text/plain",
+					"Set-Cookie": "session=abc123; Path=/; HttpOnly",
+				},
+			});
+		});
+
+		const key = "key-set-cookie";
+
+		const res1 = await app.request("/api/with-cookie", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res1.status).toBe(200);
+		expect(res1.headers.get("Set-Cookie")).toBe("session=abc123; Path=/; HttpOnly");
+
+		// Replayed response must NOT include Set-Cookie
+		const res2 = await app.request("/api/with-cookie", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.status).toBe(200);
+		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+		expect(res2.headers.get("Set-Cookie")).toBeNull();
 	});
 
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)

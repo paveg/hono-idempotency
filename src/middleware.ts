@@ -5,6 +5,8 @@ import type { IdempotencyEnv, IdempotencyOptions, StoredResponse } from "./types
 
 const DEFAULT_METHODS = ["POST", "PATCH"];
 const DEFAULT_MAX_KEY_LENGTH = 256;
+// Headers unsafe to replay — session cookies could leak across users
+const EXCLUDED_STORE_HEADERS = new Set(["set-cookie"]);
 
 export function idempotency(options: IdempotencyOptions) {
 	const {
@@ -49,10 +51,12 @@ export function idempotency(options: IdempotencyOptions) {
 			? await customFingerprint(c)
 			: await generateFingerprint(c.req.method, c.req.path, body);
 
-		const prefix = typeof cacheKeyPrefix === "function" ? await cacheKeyPrefix(c) : cacheKeyPrefix;
-		const storeKey = prefix
-			? `${prefix}:${c.req.method}:${c.req.path}:${key}`
-			: `${c.req.method}:${c.req.path}:${key}`;
+		const rawPrefix =
+			typeof cacheKeyPrefix === "function" ? await cacheKeyPrefix(c) : cacheKeyPrefix;
+		// Encode user-controlled components to prevent delimiter injection
+		const encodedKey = encodeURIComponent(key);
+		const baseKey = `${c.req.method}:${c.req.path}:${encodedKey}`;
+		const storeKey = rawPrefix ? `${encodeURIComponent(rawPrefix)}:${baseKey}` : baseKey;
 
 		const existing = await store.get(storeKey);
 
@@ -101,7 +105,9 @@ export function idempotency(options: IdempotencyOptions) {
 		const resBody = await res.text();
 		const resHeaders: Record<string, string> = {};
 		res.headers.forEach((v, k) => {
-			resHeaders[k] = v;
+			if (!EXCLUDED_STORE_HEADERS.has(k.toLowerCase())) {
+				resHeaders[k] = v;
+			}
 		});
 
 		const storedResponse: StoredResponse = {

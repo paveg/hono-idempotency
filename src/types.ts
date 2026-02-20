@@ -29,7 +29,9 @@ export interface IdempotencyOptions {
 	required?: boolean;
 	methods?: string[];
 	maxKeyLength?: number;
+	/** Should be a lightweight, side-effect-free predicate. Avoid reading the request body. */
 	skipRequest?: (c: Context) => boolean | Promise<boolean>;
+	/** Return a Response with an error status (4xx/5xx). Returning 2xx bypasses idempotency guarantees. */
 	onError?: (error: ProblemDetail, c: Context) => Response | Promise<Response>;
 	cacheKeyPrefix?: string | ((c: Context) => string | Promise<string>);
 }
