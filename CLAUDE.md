@@ -2,11 +2,11 @@
 
 ## Project
 
-Stripe-style Idempotency-Key middleware for Hono (v0.4.0). IETF draft-ietf-httpapi-idempotency-key-header compliant.
+Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpapi-idempotency-key-header compliant.
 
 ## Commands
 
-- `pnpm test` — Run tests (vitest, 87 tests across 5 files)
+- `pnpm test` — Run tests (vitest, 88 tests across 5 files)
 - `pnpm build` — Build ESM + CJS (tsup)
 - `pnpm lint` — Check linting (biome)
 - `pnpm lint:fix` — Auto-fix lint issues
