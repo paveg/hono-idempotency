@@ -1,5 +1,9 @@
 # hono-idempotency
 
+[![npm version](https://img.shields.io/npm/v/hono-idempotency)](https://www.npmjs.com/package/hono-idempotency)
+[![CI](https://github.com/paveg/hono-idempotency/actions/workflows/ci.yml/badge.svg)](https://github.com/paveg/hono-idempotency/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) compliant.
 
 ## Features
@@ -135,6 +139,7 @@ import { memoryStore } from "hono-idempotency/stores/memory";
 
 const store = memoryStore({
   ttl: 24 * 60 * 60 * 1000, // 24 hours (default)
+  maxSize: 10000, // max entries, oldest evicted first (optional, default: unlimited)
 });
 ```
 
