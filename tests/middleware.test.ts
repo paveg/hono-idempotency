@@ -548,6 +548,216 @@ describe("idempotency middleware", () => {
 		expect(record).toBeUndefined();
 	});
 
+	// C2: skipRequest
+	describe("skipRequest", () => {
+		it("C2: skips idempotency when skipRequest returns true", async () => {
+			let callCount = 0;
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					skipRequest: (c) => c.req.path === "/api/health",
+				}),
+			);
+			app.post("/api/health", (c) => {
+				callCount++;
+				return c.json({ count: callCount });
+			});
+
+			const key = "key-skip";
+
+			const res1 = await app.request("/api/health", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res1.status).toBe(200);
+			expect(await res1.json()).toEqual({ count: 1 });
+
+			// Same key, but skipRequest bypasses idempotency — handler runs again
+			const res2 = await app.request("/api/health", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res2.status).toBe(200);
+			expect(await res2.json()).toEqual({ count: 2 });
+			expect(callCount).toBe(2);
+		});
+
+		it("applies idempotency when skipRequest returns false", async () => {
+			const { app } = createApp({
+				skipRequest: () => false,
+			});
+			const key = "key-no-skip";
+
+			const res1 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res1.status).toBe(200);
+
+			const res2 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+		});
+
+		it("supports async skipRequest function", async () => {
+			let callCount = 0;
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					skipRequest: async () => {
+						await new Promise((r) => setTimeout(r, 1));
+						return true;
+					},
+				}),
+			);
+			app.post("/api/async-skip", (c) => {
+				callCount++;
+				return c.json({ count: callCount });
+			});
+
+			const res1 = await app.request("/api/async-skip", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-async-skip" },
+			});
+			const res2 = await app.request("/api/async-skip", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-async-skip" },
+			});
+
+			expect(callCount).toBe(2);
+		});
+	});
+
+	// C3: cacheKeyPrefix
+	describe("cacheKeyPrefix", () => {
+		it("C3: string prefix namespaces store keys", async () => {
+			const store = memoryStore();
+			const { app } = createApp({ store, cacheKeyPrefix: "tenant-a" });
+			const key = "key-prefix";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+
+			// Key should be stored with prefix
+			const prefixed = await store.get(`tenant-a:POST:/api/text:${key}`);
+			expect(prefixed?.status).toBe("completed");
+
+			// Old format should NOT exist
+			const unprefixed = await store.get(`POST:/api/text:${key}`);
+			expect(unprefixed).toBeUndefined();
+		});
+
+		it("function prefix resolves dynamically per request", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+				}),
+			);
+			app.post("/api/text", (c) => c.text("hello"));
+
+			const key = "key-dynamic-prefix";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key, "X-Tenant-Id": "tenant-x" },
+			});
+
+			const record = await store.get(`tenant-x:POST:/api/text:${key}`);
+			expect(record?.status).toBe("completed");
+		});
+
+		it("same key with different prefixes → treated as separate requests", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			let callCount = 0;
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+				}),
+			);
+			app.post("/api/counter", (c) => {
+				callCount++;
+				return c.json({ count: callCount });
+			});
+
+			const key = "shared-key";
+
+			const res1 = await app.request("/api/counter", {
+				method: "POST",
+				headers: { "Idempotency-Key": key, "X-Tenant-Id": "tenant-a" },
+			});
+			expect(res1.status).toBe(200);
+			expect(await res1.json()).toEqual({ count: 1 });
+
+			// Same key, different tenant → handler runs again
+			const res2 = await app.request("/api/counter", {
+				method: "POST",
+				headers: { "Idempotency-Key": key, "X-Tenant-Id": "tenant-b" },
+			});
+			expect(res2.status).toBe(200);
+			expect(await res2.json()).toEqual({ count: 2 });
+			expect(callCount).toBe(2);
+		});
+
+		it("no prefix → backwards compatible key format", async () => {
+			const store = memoryStore();
+			const { app } = createApp({ store });
+			const key = "key-no-prefix";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+
+			const record = await store.get(`POST:/api/text:${key}`);
+			expect(record?.status).toBe("completed");
+		});
+	});
+
+	// onError
+	describe("onError", () => {
+		it("receives ProblemDetail and returns custom response", async () => {
+			const { app } = createApp({
+				required: true,
+				onError: (error, c) =>
+					new Response(JSON.stringify({ custom: true, originalType: error.type }), {
+						status: error.status,
+						headers: { "Content-Type": "application/json" },
+					}),
+			});
+
+			const res = await app.request("/api/text", { method: "POST" });
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.custom).toBe(true);
+			expect(body.originalType).toContain("missing-key");
+		});
+
+		it("without onError → default RFC 9457 response", async () => {
+			const { app } = createApp({ required: true });
+
+			const res = await app.request("/api/text", { method: "POST" });
+			expect(res.status).toBe(400);
+			expect(res.headers.get("Content-Type")).toContain("application/problem+json");
+		});
+	});
+
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
 	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
 		let callCount = 0;

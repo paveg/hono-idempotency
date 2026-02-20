@@ -1,5 +1,5 @@
 import { createMiddleware } from "hono/factory";
-import { IdempotencyErrors, problemResponse } from "./errors.js";
+import { IdempotencyErrors, type ProblemDetail, problemResponse } from "./errors.js";
 import { generateFingerprint } from "./fingerprint.js";
 import type { IdempotencyEnv, IdempotencyOptions, StoredResponse } from "./types.js";
 
@@ -14,6 +14,9 @@ export function idempotency(options: IdempotencyOptions) {
 		required = false,
 		methods = DEFAULT_METHODS,
 		maxKeyLength = DEFAULT_MAX_KEY_LENGTH,
+		skipRequest,
+		onError,
+		cacheKeyPrefix,
 	} = options;
 
 	return createMiddleware<IdempotencyEnv>(async (c, next) => {
@@ -21,17 +24,24 @@ export function idempotency(options: IdempotencyOptions) {
 			return next();
 		}
 
+		if (skipRequest && (await skipRequest(c))) {
+			return next();
+		}
+
+		const errorResponse = (problem: ProblemDetail, extraHeaders?: Record<string, string>) =>
+			onError ? onError(problem, c) : problemResponse(problem, extraHeaders);
+
 		const key = c.req.header(headerName);
 
 		if (!key) {
 			if (required) {
-				return problemResponse(IdempotencyErrors.missingKey());
+				return errorResponse(IdempotencyErrors.missingKey());
 			}
 			return next();
 		}
 
 		if (key.length > maxKeyLength) {
-			return problemResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
+			return errorResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
 		}
 
 		const body = await c.req.text();
@@ -39,18 +49,20 @@ export function idempotency(options: IdempotencyOptions) {
 			? await customFingerprint(c)
 			: await generateFingerprint(c.req.method, c.req.path, body);
 
-		// Namespace store key by method:path to avoid cross-endpoint collisions
-		const storeKey = `${c.req.method}:${c.req.path}:${key}`;
+		const prefix = typeof cacheKeyPrefix === "function" ? await cacheKeyPrefix(c) : cacheKeyPrefix;
+		const storeKey = prefix
+			? `${prefix}:${c.req.method}:${c.req.path}:${key}`
+			: `${c.req.method}:${c.req.path}:${key}`;
 
 		const existing = await store.get(storeKey);
 
 		if (existing) {
 			if (existing.status === "processing") {
-				return problemResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
+				return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
 			}
 
 			if (existing.fingerprint !== fp) {
-				return problemResponse(IdempotencyErrors.fingerprintMismatch());
+				return errorResponse(IdempotencyErrors.fingerprintMismatch());
 			}
 
 			if (existing.response) {
@@ -67,7 +79,7 @@ export function idempotency(options: IdempotencyOptions) {
 
 		const locked = await store.lock(storeKey, record);
 		if (!locked) {
-			return problemResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
+			return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
 		}
 
 		c.set("idempotencyKey", key);

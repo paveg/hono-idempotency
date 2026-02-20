@@ -1,4 +1,5 @@
 import type { Context, Env } from "hono";
+import type { ProblemDetail } from "./errors.js";
 import type { IdempotencyStore } from "./stores/types.js";
 
 export interface IdempotencyEnv extends Env {
@@ -28,4 +29,7 @@ export interface IdempotencyOptions {
 	required?: boolean;
 	methods?: string[];
 	maxKeyLength?: number;
+	skipRequest?: (c: Context) => boolean | Promise<boolean>;
+	onError?: (error: ProblemDetail, c: Context) => Response | Promise<Response>;
+	cacheKeyPrefix?: string | ((c: Context) => string | Promise<string>);
 }

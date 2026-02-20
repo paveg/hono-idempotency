@@ -76,6 +76,9 @@
 		"url": "https://github.com/paveg/hono-idempotency/issues"
 	},
 	"license": "MIT",
+	"engines": {
+		"node": ">=20"
+	},
 	"peerDependencies": {
 		"hono": ">=4.0.0"
 	},
