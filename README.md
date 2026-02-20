@@ -145,6 +145,23 @@ idempotency({
 });
 ```
 
+Use `problemResponse` as a fallback to keep the default RFC 9457 format for unhandled error codes:
+
+```ts
+import { problemResponse } from "hono-idempotency";
+
+idempotency({
+  store: memoryStore(),
+  onError: (error, c) => {
+    if (error.code === "CONFLICT") {
+      return c.json({ retryAfter: 1 }, 409);
+    }
+    // Default RFC 9457 response for all other errors
+    return problemResponse(error);
+  },
+});
+```
+
 ## Stores
 
 ### Choosing a Store

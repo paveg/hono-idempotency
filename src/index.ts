@@ -1,4 +1,5 @@
 export { idempotency } from "./middleware.js";
+export { problemResponse } from "./errors.js";
 export type {
 	IdempotencyEnv,
 	IdempotencyOptions,
