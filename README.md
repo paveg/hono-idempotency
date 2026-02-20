@@ -147,6 +147,19 @@ idempotency({
 
 ## Stores
 
+### Choosing a Store
+
+| | Memory | Cloudflare KV | Cloudflare D1 |
+|---|---|---|---|
+| **Consistency** | Strong (single-instance) | Eventual | Strong |
+| **Durability** | None (process-local) | Durable | Durable |
+| **Lock atomicity** | Atomic (in-process Map) | Not atomic across edge locations | Atomic (SQL INSERT OR IGNORE) |
+| **TTL** | In-process sweep | Automatic (expirationTtl) | SQL filter on created_at |
+| **Setup** | None | KV namespace binding | D1 database binding |
+| **Best for** | Development, single-instance | Multi-region, low-contention | Multi-region, strong consistency |
+
+> **Tip:** Start with `memoryStore()` for development. For production on Cloudflare Workers, use `d1Store` when you need strong consistency guarantees, or `kvStore` for simpler deployments where occasional duplicate processing is acceptable.
+
 ### Memory Store
 
 Built-in, suitable for single-instance deployments and development.
