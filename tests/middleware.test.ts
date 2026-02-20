@@ -124,6 +124,18 @@ describe("idempotency middleware", () => {
 		expect(body.title).toContain("too long");
 	});
 
+	// Boundary: key exactly at maxKeyLength is accepted
+	it("accepts key of exactly maxKeyLength characters", async () => {
+		const { app } = createApp({ maxKeyLength: 36 });
+		const exactKey = "a".repeat(36);
+
+		const res = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": exactKey },
+		});
+		expect(res.status).toBe(200);
+	});
+
 	// E7: concurrent requests → one 200, one 409
 	it("E7: returns 409 Conflict for concurrent requests with same key", async () => {
 		const { app } = createApp();
