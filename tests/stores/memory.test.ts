@@ -172,6 +172,35 @@ describe("memoryStore", () => {
 		expect(store.size).toBe(100);
 	});
 
+	// purge() — explicit bulk cleanup
+	it("purge() removes expired entries and returns count", async () => {
+		const store = memoryStore({ ttl: 1000 });
+
+		await store.lock("a", makeRecord("a"));
+		await store.lock("b", makeRecord("b"));
+
+		// Add "c" before time advances so it's not expired
+		vi.advanceTimersByTime(500);
+		await store.lock("c", makeRecord("c"));
+
+		// Now expire "a" and "b" but not "c"
+		vi.advanceTimersByTime(501);
+
+		const purged = await store.purge();
+		expect(purged).toBe(2);
+		expect(store.size).toBe(1);
+		expect(await store.get("c")).toBeDefined();
+	});
+
+	it("purge() returns 0 when nothing to clean", async () => {
+		const store = memoryStore({ ttl: 10000 });
+
+		await store.lock("a", makeRecord("a"));
+		const purged = await store.purge();
+		expect(purged).toBe(0);
+		expect(store.size).toBe(1);
+	});
+
 	it("uses default TTL of 24 hours", async () => {
 		const store = memoryStore();
 		const record = makeRecord("key-1");

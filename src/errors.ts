@@ -1,8 +1,15 @@
+export type IdempotencyErrorCode =
+	| "MISSING_KEY"
+	| "KEY_TOO_LONG"
+	| "FINGERPRINT_MISMATCH"
+	| "CONFLICT";
+
 export interface ProblemDetail {
 	type: string;
 	title: string;
 	status: number;
 	detail: string;
+	code: IdempotencyErrorCode;
 }
 
 export function problemResponse(
@@ -27,6 +34,7 @@ export const IdempotencyErrors = {
 			title: "Idempotency-Key header is required",
 			status: 400,
 			detail: "This endpoint requires an Idempotency-Key header",
+			code: "MISSING_KEY",
 		};
 	},
 
@@ -36,6 +44,7 @@ export const IdempotencyErrors = {
 			title: "Idempotency-Key is too long",
 			status: 400,
 			detail: `Idempotency-Key must be at most ${maxLength} characters`,
+			code: "KEY_TOO_LONG",
 		};
 	},
 
@@ -46,6 +55,7 @@ export const IdempotencyErrors = {
 			status: 422,
 			detail:
 				"A request with the same idempotency key but different parameters was already processed",
+			code: "FINGERPRINT_MISMATCH",
 		};
 	},
 
@@ -55,6 +65,7 @@ export const IdempotencyErrors = {
 			title: "A request is outstanding for this idempotency key",
 			status: 409,
 			detail: "A request with the same idempotency key is currently being processed",
+			code: "CONFLICT",
 		};
 	},
 } as const;

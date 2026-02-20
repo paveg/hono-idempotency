@@ -783,6 +783,64 @@ describe("idempotency middleware", () => {
 			expect(res.headers.get("Content-Type")).toContain("application/problem+json");
 		});
 
+		it("error includes code field for programmatic identification", async () => {
+			const errors: { code: string; status: number }[] = [];
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					required: true,
+					maxKeyLength: 10,
+					onError: (error) => {
+						errors.push({ code: (error as { code: string }).code, status: error.status });
+						return new Response(null, { status: error.status });
+					},
+				}),
+			);
+			app.post("/api/test", (c) => c.text("ok"));
+
+			// MISSING_KEY
+			await app.request("/api/test", { method: "POST" });
+
+			// KEY_TOO_LONG
+			await app.request("/api/test", {
+				method: "POST",
+				headers: { "Idempotency-Key": "a".repeat(11) },
+			});
+
+			expect(errors[0].code).toBe("MISSING_KEY");
+			expect(errors[1].code).toBe("KEY_TOO_LONG");
+		});
+
+		it("conflict and fingerprint mismatch have distinct codes", async () => {
+			const { app } = createApp();
+			const key = "key-code-check";
+
+			// First request succeeds
+			await app.request("/api/create", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": key,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ a: 1 }),
+			});
+
+			// Fingerprint mismatch
+			const res = await app.request("/api/create", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": key,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ a: 2 }),
+			});
+			const body = await res.json();
+			expect(body.code).toBe("FINGERPRINT_MISMATCH");
+		});
+
 		it("onError receives Hono context with request info", async () => {
 			const store = memoryStore();
 			const app = new Hono();

@@ -15,4 +15,7 @@ export interface IdempotencyStore {
 
 	/** Delete a key (cleanup on error). */
 	delete(key: string): Promise<void>;
+
+	/** Physically remove expired records. Returns the number of purged entries. */
+	purge(): Promise<number>;
 }

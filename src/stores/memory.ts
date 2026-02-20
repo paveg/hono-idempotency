@@ -73,5 +73,16 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 		async delete(key) {
 			map.delete(key);
 		},
+
+		async purge() {
+			let count = 0;
+			for (const [key, record] of map) {
+				if (isExpired(record)) {
+					map.delete(key);
+					count++;
+				}
+			}
+			return count;
+		},
 	};
 }

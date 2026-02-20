@@ -98,5 +98,14 @@ export function d1Store(options: D1StoreOptions): IdempotencyStore {
 			await ensureTable();
 			await db.prepare(`DELETE FROM ${tableName} WHERE key = ?`).bind(key).run();
 		},
+
+		async purge() {
+			await ensureTable();
+			const result = await db
+				.prepare(`DELETE FROM ${tableName} WHERE created_at < ?`)
+				.bind(ttlThreshold())
+				.run();
+			return result.meta.changes;
+		},
 	};
 }

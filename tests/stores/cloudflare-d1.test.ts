@@ -52,6 +52,18 @@ function createMockD1(): D1DatabaseMock {
 					}
 					return { success: true, meta: { changes: row ? 1 : 0 } };
 				}
+				if (sql.startsWith("DELETE") && sql.includes("created_at")) {
+					// Bulk purge: DELETE ... WHERE created_at < ?
+					const threshold = boundParams[0] as number;
+					let deleted = 0;
+					for (const [key, row] of rows) {
+						if ((row.created_at as number) < threshold) {
+							rows.delete(key);
+							deleted++;
+						}
+					}
+					return { success: true, meta: { changes: deleted } };
+				}
 				if (sql.startsWith("DELETE")) {
 					const key = boundParams[0] as string;
 					rows.delete(key);
@@ -224,6 +236,32 @@ describe("d1Store", () => {
 
 		const saved = await store.get("key-1");
 		expect(saved?.fingerprint).toBe("fp-new");
+	});
+
+	// purge() — physically delete expired rows
+	it("purge() removes expired rows and returns count", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never, ttl: 1 });
+
+		await store.lock("key-1", makeRecord("key-1"));
+		await store.lock("key-2", makeRecord("key-2"));
+
+		vi.advanceTimersByTime(1001);
+
+		await store.lock("key-3", makeRecord("key-3")); // not expired
+
+		const purged = await store.purge();
+		expect(purged).toBe(2);
+		expect(await store.get("key-3")).toBeDefined();
+	});
+
+	it("purge() returns 0 when nothing to clean", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never, ttl: 10 });
+
+		await store.lock("key-1", makeRecord("key-1"));
+		const purged = await store.purge();
+		expect(purged).toBe(0);
 	});
 
 	// tableName validation
