@@ -134,6 +134,28 @@ const store = memoryStore({
 });
 ```
 
+### Cloudflare KV Store
+
+For Cloudflare Workers with KV. TTL is handled automatically by KV expiration.
+
+```ts
+import { kvStore } from "hono-idempotency/stores/cloudflare-kv";
+
+type Bindings = { IDEMPOTENCY_KV: KVNamespace };
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.use("/api/*", async (c, next) => {
+  const store = kvStore({
+    namespace: c.env.IDEMPOTENCY_KV,
+    ttl: 86400, // 24 hours in seconds (default)
+  });
+  return idempotency({ store })(c, next);
+});
+```
+
+> **Note:** KV is eventually consistent. In rare cases, concurrent requests to different edge locations may both acquire the lock. This is acceptable for most idempotency use cases.
+
 ### Custom Store
 
 Implement the `IdempotencyStore` interface:
