@@ -10,7 +10,6 @@ export default defineConfig({
 				"src/index.ts",
 				"src/types.ts",
 				"src/stores/types.ts",
-				"src/stores/cloudflare-kv.ts",
 				"src/stores/cloudflare-d1.ts",
 			],
 			thresholds: {
