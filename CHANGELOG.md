@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.4.0
+
+### Minor Changes
+
+- [#33](https://github.com/paveg/hono-idempotency/pull/33) [`e7b92de`](https://github.com/paveg/hono-idempotency/commit/e7b92debff8630df7121b3a58c6cece4e753301a) Thanks [@paveg](https://github.com/paveg)! - Add store.purge() for expired record cleanup, error codes on ProblemDetail, and docs improvements
+
 ## 0.3.0
 
 ### Minor Changes
