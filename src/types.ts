@@ -4,7 +4,7 @@ import type { IdempotencyStore } from "./stores/types.js";
 
 export interface IdempotencyEnv extends Env {
 	Variables: {
-		idempotencyKey: string;
+		idempotencyKey: string | undefined;
 	};
 }
 
