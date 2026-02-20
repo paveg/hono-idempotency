@@ -363,4 +363,68 @@ describe("idempotency middleware", () => {
 		const conflictRes = res1.status === 409 ? res1 : res2;
 		expect(conflictRes.headers.get("Retry-After")).toBe("1");
 	});
+
+	// RFC 9457: error responses use application/problem+json
+	describe("RFC 9457 Problem Details compliance", () => {
+		it("400 missing key uses application/problem+json", async () => {
+			const { app } = createApp({ required: true });
+			const res = await app.request("/api/text", { method: "POST" });
+			expect(res.headers.get("Content-Type")).toContain("application/problem+json");
+		});
+
+		it("400 key-too-long has correct type URI", async () => {
+			const { app } = createApp({ maxKeyLength: 10 });
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "a".repeat(11) },
+			});
+			const body = await res.json();
+			expect(body.type).toContain("key-too-long");
+			expect(body.type).not.toContain("missing-key");
+		});
+
+		it("422 fingerprint mismatch uses application/problem+json", async () => {
+			const { app } = createApp();
+			const key = "key-rfc9457-422";
+
+			await app.request("/api/create", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": key,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ a: 1 }),
+			});
+
+			const res = await app.request("/api/create", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": key,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ a: 2 }),
+			});
+
+			expect(res.headers.get("Content-Type")).toContain("application/problem+json");
+		});
+
+		it("409 conflict uses application/problem+json", async () => {
+			const { app } = createApp();
+			const key = "key-rfc9457-409";
+
+			const [res1, res2] = await Promise.all([
+				app.request("/api/slow", {
+					method: "POST",
+					headers: { "Idempotency-Key": key },
+				}),
+				app.request("/api/slow", {
+					method: "POST",
+					headers: { "Idempotency-Key": key },
+				}),
+			]);
+
+			const conflictRes = res1.status === 409 ? res1 : res2;
+			expect(conflictRes.headers.get("Content-Type")).toContain("application/problem+json");
+		});
+	});
 });

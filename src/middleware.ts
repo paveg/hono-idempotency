@@ -1,7 +1,6 @@
 import { createMiddleware } from "hono/factory";
-import { IdempotencyErrors } from "./errors.js";
+import { IdempotencyErrors, problemResponse } from "./errors.js";
 import { generateFingerprint } from "./fingerprint.js";
-import type { IdempotencyStore } from "./stores/types.js";
 import type { IdempotencyOptions, StoredResponse } from "./types.js";
 
 const DEFAULT_METHODS = ["POST", "PATCH"];
@@ -26,15 +25,13 @@ export function idempotency(options: IdempotencyOptions) {
 
 		if (!key) {
 			if (required) {
-				const error = IdempotencyErrors.missingKey();
-				return c.json(error, error.status as 400);
+				return problemResponse(IdempotencyErrors.missingKey());
 			}
 			return next();
 		}
 
 		if (key.length > maxKeyLength) {
-			const error = IdempotencyErrors.keyTooLong(maxKeyLength);
-			return c.json(error, error.status as 400);
+			return problemResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
 		}
 
 		const body = await c.req.text();
@@ -49,17 +46,11 @@ export function idempotency(options: IdempotencyOptions) {
 
 		if (existing) {
 			if (existing.status === "processing") {
-				const error = IdempotencyErrors.conflict();
-				return c.json(error, {
-					status: error.status as 409,
-					headers: { "Retry-After": "1" },
-				});
+				return problemResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
 			}
 
-			// completed
 			if (existing.fingerprint !== fp) {
-				const error = IdempotencyErrors.fingerprintMismatch();
-				return c.json(error, error.status as 422);
+				return problemResponse(IdempotencyErrors.fingerprintMismatch());
 			}
 
 			if (existing.response) {
@@ -76,11 +67,7 @@ export function idempotency(options: IdempotencyOptions) {
 
 		const locked = await store.lock(storeKey, record);
 		if (!locked) {
-			const error = IdempotencyErrors.conflict();
-			return c.json(error, {
-				status: error.status as 409,
-				headers: { "Retry-After": "1" },
-			});
+			return problemResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
 		}
 
 		c.set("idempotencyKey", key);
