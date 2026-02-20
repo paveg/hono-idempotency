@@ -488,6 +488,66 @@ describe("idempotency middleware", () => {
 		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
 	});
 
+	// lock() race condition: get() returns undefined, but lock() returns false
+	it("returns 409 when lock() fails due to race condition", async () => {
+		let lockCallCount = 0;
+		const inner = memoryStore();
+		// Mock store: first lock() succeeds silently (simulating another request),
+		// second lock() fails (our request loses the race)
+		const racyStore = {
+			get: () => inner.get("__never__"), // always returns undefined
+			lock: async (...args: Parameters<typeof inner.lock>) => {
+				lockCallCount++;
+				if (lockCallCount === 1) {
+					// First call: simulate race — another request locked it
+					return false;
+				}
+				return inner.lock(...args);
+			},
+			complete: inner.complete.bind(inner),
+			delete: inner.delete.bind(inner),
+		};
+
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store: racyStore }));
+		app.post("/api/race", (c) => c.json({ ok: true }));
+
+		const res = await app.request("/api/race", {
+			method: "POST",
+			headers: { "Idempotency-Key": "key-race-lock" },
+		});
+		expect(res.status).toBe(409);
+		const body = await res.json();
+		expect(body.type).toContain("conflict");
+		expect(res.headers.get("Retry-After")).toBe("1");
+	});
+
+	// Non-Error throw bypasses Hono's compose error handling,
+	// causing next() to reject and triggering our catch block
+	it("catch block deletes key when handler throws non-Error value", async () => {
+		const store = memoryStore();
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store }));
+		app.post("/api/throw-string", () => {
+			throw "non-error value";
+		});
+
+		const key = "key-non-error";
+		const storeKey = `POST:/api/throw-string:${key}`;
+
+		// Hono re-throws non-Error values all the way up
+		await expect(
+			app.request("/api/throw-string", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			}),
+		).rejects.toBe("non-error value");
+
+		// Catch block should have deleted the key before re-throwing
+		const record = await store.get(storeKey);
+		expect(record).toBeUndefined();
+	});
+
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
 	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
 		let callCount = 0;
