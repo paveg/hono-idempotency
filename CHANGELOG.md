@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.5.0
+
+### Minor Changes
+
+- [#43](https://github.com/paveg/hono-idempotency/pull/43) [`2927185`](https://github.com/paveg/hono-idempotency/commit/29271857862475f4350c50d1016cc6a1922c400c) Thanks [@paveg](https://github.com/paveg)! - Export `problemResponse` for selective `onError` customization, add store selection guide, and improve JSDoc
+
 ## 0.4.0
 
 ### Minor Changes
