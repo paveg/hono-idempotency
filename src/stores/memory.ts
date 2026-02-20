@@ -3,7 +3,7 @@ import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-interface MemoryStoreOptions {
+export interface MemoryStoreOptions {
 	ttl?: number;
 	/** Maximum number of entries. Oldest entries are evicted when exceeded. */
 	maxSize?: number;
