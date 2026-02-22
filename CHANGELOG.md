@@ -1,5 +1,15 @@
 # hono-idempotency
 
+## 0.6.0
+
+### Minor Changes
+
+- [`dd2334a`](https://github.com/paveg/hono-idempotency/commit/dd2334a4257d2bd5835a720c6b7e216c766beb15) Thanks [@paveg](https://github.com/paveg)! - Add Redis store adapter (`redisStore`) and Durable Objects store adapter (`durableObjectStore`)
+
+  - **Redis**: Atomic locking via `SET NX EX`, compatible with ioredis, node-redis, and @upstash/redis
+  - **Durable Objects**: Leverages DO single-writer model for guaranteed lock atomicity
+  - Add Typed RPC Client documentation for `IdempotencyEnv` with `hc<AppType>`
+
 ## 0.5.1
 
 ### Patch Changes
