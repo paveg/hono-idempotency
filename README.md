@@ -358,6 +358,30 @@ app.post("/api/payments", (c: Context<IdempotencyEnv>) => {
 });
 ```
 
+## Typed RPC Client
+
+When using Hono's [RPC client](https://hono.dev/docs/guides/rpc), merge `IdempotencyEnv` with your app's `Env` to get end-to-end type safety:
+
+```ts
+import { Hono } from "hono";
+import { hc } from "hono/client";
+import { idempotency } from "hono-idempotency";
+import type { IdempotencyEnv } from "hono-idempotency";
+import { memoryStore } from "hono-idempotency/stores/memory";
+
+const app = new Hono<IdempotencyEnv>()
+  .use("/api/*", idempotency({ store: memoryStore() }))
+  .post("/api/payments", (c) => {
+    const key = c.get("idempotencyKey"); // typed as string | undefined
+    return c.json({ id: "pay_123", key });
+  });
+
+type AppType = typeof app;
+
+// Client knows about all routes and their types
+const client = hc<AppType>("http://localhost:3000");
+```
+
 ## Documentation
 
 - [Devin Wiki](https://app.devin.ai/org/ryota-ikezawa/wiki/paveg/hono-idempotency)
