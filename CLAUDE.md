@@ -6,7 +6,7 @@ Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpa
 
 ## Commands
 
-- `pnpm test` — Run tests (vitest, 90 tests across 5 files)
+- `pnpm test` — Run tests (vitest, 127 tests across 7 files)
 - `pnpm build` — Build ESM + CJS (tsup)
 - `pnpm lint` — Check linting (biome)
 - `pnpm lint:fix` — Auto-fix lint issues
@@ -17,7 +17,7 @@ Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpa
 ## Architecture
 
 - `src/middleware.ts` — Core middleware (method filter, skipRequest, key validation, fingerprint, cacheKeyPrefix, lock/complete/delete flow, onError)
-- `src/stores/` — Store adapters (all production-ready: `memory.ts`, `cloudflare-kv.ts`, `cloudflare-d1.ts`)
+- `src/stores/` — Store adapters (all production-ready: `memory.ts`, `redis.ts`, `cloudflare-kv.ts`, `cloudflare-d1.ts`, `durable-objects.ts`)
 - `src/stores/types.ts` — `IdempotencyStore` interface (`get/lock/complete/delete/purge`)
 - `src/errors.ts` — RFC 9457 Problem Details with `IdempotencyErrorCode` (`MISSING_KEY | KEY_TOO_LONG | FINGERPRINT_MISMATCH | CONFLICT`)
 - `src/fingerprint.ts` — SHA-256 fingerprint via Web Crypto API
@@ -43,8 +43,10 @@ Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpa
 | Store | TTL | `purge()` | Notes |
 |-------|-----|-----------|-------|
 | `memoryStore` | In-process sweep on `lock()` + `get()` | Sweeps expired entries, returns count | `maxSize` for FIFO eviction |
+| `redisStore` | Redis `EX` (automatic) | No-op, returns 0 | Atomic `SET NX EX`; works with ioredis, node-redis, @upstash/redis |
 | `kvStore` | KV `expirationTtl` (automatic) | No-op, returns 0 | Cloudflare KV handles expiry |
 | `d1Store` | SQL `WHERE created_at < ?` filter | `DELETE WHERE created_at < ?`, returns count | Table name regex-validated |
+| `durableObjectStore` | `createdAt` threshold (manual) | `list()` + filter + `delete()`, returns count | DO single-writer guarantees lock atomicity |
 
 ## Conventions
 
