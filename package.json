@@ -56,6 +56,16 @@
 				"types": "./dist/stores/redis.d.cts",
 				"default": "./dist/stores/redis.cjs"
 			}
+		},
+		"./stores/durable-objects": {
+			"import": {
+				"types": "./dist/stores/durable-objects.d.ts",
+				"default": "./dist/stores/durable-objects.js"
+			},
+			"require": {
+				"types": "./dist/stores/durable-objects.d.cts",
+				"default": "./dist/stores/durable-objects.cjs"
+			}
 		}
 	},
 	"sideEffects": false,

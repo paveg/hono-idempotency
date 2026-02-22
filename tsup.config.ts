@@ -7,6 +7,7 @@ export default defineConfig({
 		"stores/cloudflare-kv": "src/stores/cloudflare-kv.ts",
 		"stores/cloudflare-d1": "src/stores/cloudflare-d1.ts",
 		"stores/redis": "src/stores/redis.ts",
+		"stores/durable-objects": "src/stores/durable-objects.ts",
 	},
 	format: ["esm", "cjs"],
 	dts: true,

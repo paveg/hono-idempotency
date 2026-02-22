@@ -19,7 +19,7 @@ Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draf
 - Multi-tenant key isolation via `cacheKeyPrefix`
 - Custom error responses via `onError`
 - Expired record cleanup via `store.purge()`
-- Pluggable store interface (memory, Redis, Cloudflare KV, Cloudflare D1)
+- Pluggable store interface (memory, Redis, Cloudflare KV, Cloudflare D1, Durable Objects)
 - Works on Cloudflare Workers, Node.js, Deno, Bun, and any Web Standards runtime
 
 ## Install
@@ -166,16 +166,16 @@ idempotency({
 
 ### Choosing a Store
 
-| | Memory | Redis | Cloudflare KV | Cloudflare D1 |
-|---|---|---|---|---|
-| **Consistency** | Strong (single-instance) | Strong | Eventual | Strong |
-| **Durability** | None (process-local) | Durable | Durable | Durable |
-| **Lock atomicity** | Atomic (in-process Map) | Atomic (SET NX) | Not atomic across edge locations | Atomic (SQL INSERT OR IGNORE) |
-| **TTL** | In-process sweep | Automatic (EX) | Automatic (expirationTtl) | SQL filter on created_at |
-| **Setup** | None | Redis connection | KV namespace binding | D1 database binding |
-| **Best for** | Development, single-instance | Node.js / serverless production | Multi-region, low-contention | Multi-region, strong consistency |
+| | Memory | Redis | Cloudflare KV | Cloudflare D1 | Durable Objects |
+|---|---|---|---|---|---|
+| **Consistency** | Strong (single-instance) | Strong | Eventual | Strong | Strong (single-writer) |
+| **Durability** | None (process-local) | Durable | Durable | Durable | Durable |
+| **Lock atomicity** | Atomic (in-process Map) | Atomic (SET NX) | Not atomic across edge locations | Atomic (SQL INSERT OR IGNORE) | Atomic (single-writer) |
+| **TTL** | In-process sweep | Automatic (EX) | Automatic (expirationTtl) | SQL filter on created_at | Manual (createdAt threshold) |
+| **Setup** | None | Redis connection | KV namespace binding | D1 database binding | DO namespace binding |
+| **Best for** | Development, single-instance | Node.js / serverless production | Multi-region, low-contention | Multi-region, strong consistency | Cloudflare, strong consistency |
 
-> **Tip:** Start with `memoryStore()` for development. For Node.js production, use `redisStore`. For Cloudflare Workers, use `d1Store` for strong consistency, or `kvStore` for simpler deployments where occasional duplicate processing is acceptable.
+> **Tip:** Start with `memoryStore()` for development. For Node.js production, use `redisStore`. For Cloudflare Workers, use `durableObjectStore` or `d1Store` for strong consistency, or `kvStore` for simpler deployments where occasional duplicate processing is acceptable.
 
 ### Memory Store
 
@@ -268,6 +268,33 @@ app.use("/api/*", async (c, next) => {
 ```
 
 > **Note:** D1 provides strong consistency, making `lock()` reliable for concurrent request protection.
+
+### Durable Objects Store
+
+For Cloudflare Workers with Durable Objects. The single-writer model guarantees atomic locking without additional primitives.
+
+```ts
+import { durableObjectStore } from "hono-idempotency/stores/durable-objects";
+import { DurableObject } from "cloudflare:workers";
+
+export class IdempotencyDO extends DurableObject {
+  private store;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.store = durableObjectStore({
+      storage: ctx.storage,
+      ttl: 24 * 60 * 60 * 1000, // 24 hours in ms (default)
+    });
+  }
+
+  async fetch(request: Request) {
+    // Expose store methods via HTTP — or use RPC
+  }
+}
+```
+
+> **Note:** DO storage has no native TTL. Expired records are filtered on `get()`/`lock()` and physically removed by `purge()`. Call `purge()` periodically to reclaim storage.
 
 ### Purging Expired Records
 
