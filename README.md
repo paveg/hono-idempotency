@@ -19,7 +19,7 @@ Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draf
 - Multi-tenant key isolation via `cacheKeyPrefix`
 - Custom error responses via `onError`
 - Expired record cleanup via `store.purge()`
-- Pluggable store interface (memory, Cloudflare KV, Cloudflare D1)
+- Pluggable store interface (memory, Redis, Cloudflare KV, Cloudflare D1)
 - Works on Cloudflare Workers, Node.js, Deno, Bun, and any Web Standards runtime
 
 ## Install
@@ -166,16 +166,16 @@ idempotency({
 
 ### Choosing a Store
 
-| | Memory | Cloudflare KV | Cloudflare D1 |
-|---|---|---|---|
-| **Consistency** | Strong (single-instance) | Eventual | Strong |
-| **Durability** | None (process-local) | Durable | Durable |
-| **Lock atomicity** | Atomic (in-process Map) | Not atomic across edge locations | Atomic (SQL INSERT OR IGNORE) |
-| **TTL** | In-process sweep | Automatic (expirationTtl) | SQL filter on created_at |
-| **Setup** | None | KV namespace binding | D1 database binding |
-| **Best for** | Development, single-instance | Multi-region, low-contention | Multi-region, strong consistency |
+| | Memory | Redis | Cloudflare KV | Cloudflare D1 |
+|---|---|---|---|---|
+| **Consistency** | Strong (single-instance) | Strong | Eventual | Strong |
+| **Durability** | None (process-local) | Durable | Durable | Durable |
+| **Lock atomicity** | Atomic (in-process Map) | Atomic (SET NX) | Not atomic across edge locations | Atomic (SQL INSERT OR IGNORE) |
+| **TTL** | In-process sweep | Automatic (EX) | Automatic (expirationTtl) | SQL filter on created_at |
+| **Setup** | None | Redis connection | KV namespace binding | D1 database binding |
+| **Best for** | Development, single-instance | Node.js / serverless production | Multi-region, low-contention | Multi-region, strong consistency |
 
-> **Tip:** Start with `memoryStore()` for development. For production on Cloudflare Workers, use `d1Store` when you need strong consistency guarantees, or `kvStore` for simpler deployments where occasional duplicate processing is acceptable.
+> **Tip:** Start with `memoryStore()` for development. For Node.js production, use `redisStore`. For Cloudflare Workers, use `d1Store` for strong consistency, or `kvStore` for simpler deployments where occasional duplicate processing is acceptable.
 
 ### Memory Store
 
@@ -189,6 +189,37 @@ const store = memoryStore({
   maxSize: 10000, // max entries, oldest evicted first (optional, default: unlimited)
 });
 ```
+
+### Redis Store
+
+For Node.js, serverless, or any environment with Redis. Compatible with [ioredis](https://github.com/redis/ioredis), [node-redis](https://github.com/redis/node-redis), and [@upstash/redis](https://github.com/upstash/upstash-redis).
+
+```ts
+import { redisStore } from "hono-idempotency/stores/redis";
+import Redis from "ioredis";
+
+const store = redisStore({
+  client: new Redis(),
+  ttl: 86400, // 24 hours in seconds (default)
+});
+
+app.use("/api/*", idempotency({ store }));
+```
+
+With Upstash Redis (edge-compatible):
+
+```ts
+import { redisStore } from "hono-idempotency/stores/redis";
+import { Redis } from "@upstash/redis";
+
+const store = redisStore({
+  client: new Redis({ url: UPSTASH_URL, token: UPSTASH_TOKEN }),
+});
+
+app.use("/api/*", idempotency({ store }));
+```
+
+> **Note:** Redis `SET NX EX` provides atomic locking — the strongest lock guarantee among all store backends. `purge()` is a no-op since Redis handles expiration automatically.
 
 ### Cloudflare KV Store
 
@@ -258,7 +289,7 @@ export default {
 };
 ```
 
-> **Note:** KV store's `purge()` is a no-op — KV handles expiration automatically via `expirationTtl`.
+> **Note:** `purge()` is a no-op for Redis and KV stores — they handle expiration automatically.
 
 ### Custom Store
 

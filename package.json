@@ -46,6 +46,16 @@
 				"types": "./dist/stores/cloudflare-d1.d.cts",
 				"default": "./dist/stores/cloudflare-d1.cjs"
 			}
+		},
+		"./stores/redis": {
+			"import": {
+				"types": "./dist/stores/redis.d.ts",
+				"default": "./dist/stores/redis.js"
+			},
+			"require": {
+				"types": "./dist/stores/redis.d.cts",
+				"default": "./dist/stores/redis.cjs"
+			}
 		}
 	},
 	"sideEffects": false,
