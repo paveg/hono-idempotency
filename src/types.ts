@@ -34,4 +34,16 @@ export interface IdempotencyOptions {
 	/** Return a Response with an error status (4xx/5xx). Returning 2xx bypasses idempotency guarantees. */
 	onError?: (error: ProblemDetail, c: Context) => Response | Promise<Response>;
 	cacheKeyPrefix?: string | ((c: Context) => string | Promise<string>);
+	/**
+	 * Called when a cached response is about to be replayed.
+	 * Errors are swallowed — hooks must not affect request processing.
+	 * `key` is the raw header value; sanitize before logging to prevent log injection.
+	 */
+	onCacheHit?: (key: string, c: Context) => void | Promise<void>;
+	/**
+	 * Called when a new request acquires the lock (before the handler runs).
+	 * Fires on each lock acquisition, including retries after prior failures.
+	 * Errors are swallowed — hooks must not affect request processing.
+	 */
+	onCacheMiss?: (key: string, c: Context) => void | Promise<void>;
 }

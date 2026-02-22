@@ -19,6 +19,8 @@ export function idempotency(options: IdempotencyOptions) {
 		skipRequest,
 		onError,
 		cacheKeyPrefix,
+		onCacheHit,
+		onCacheMiss,
 	} = options;
 
 	return createMiddleware<IdempotencyEnv>(async (c, next) => {
@@ -70,6 +72,7 @@ export function idempotency(options: IdempotencyOptions) {
 			}
 
 			if (existing.response) {
+				await safeHook(onCacheHit, key, c);
 				return replayResponse(existing.response);
 			}
 		}
@@ -87,6 +90,7 @@ export function idempotency(options: IdempotencyOptions) {
 		}
 
 		c.set("idempotencyKey", key);
+		await safeHook(onCacheMiss, key, c);
 
 		try {
 			await next();
@@ -124,6 +128,20 @@ export function idempotency(options: IdempotencyOptions) {
 			headers: res.headers,
 		});
 	});
+}
+
+// Hook errors must not break idempotency guarantees
+async function safeHook<C>(
+	fn: ((key: string, c: C) => void | Promise<void>) | undefined,
+	key: string,
+	c: C,
+): Promise<void> {
+	if (!fn) return;
+	try {
+		await fn(key, c);
+	} catch {
+		// Swallow — hooks are for observability, not control flow
+	}
 }
 
 function replayResponse(stored: StoredResponse) {
