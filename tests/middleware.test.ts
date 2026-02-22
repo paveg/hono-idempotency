@@ -911,6 +911,244 @@ describe("idempotency middleware", () => {
 		});
 	});
 
+	// Observability hooks
+	describe("observability hooks", () => {
+		it("onCacheHit is called when replaying a cached response", async () => {
+			const hits: string[] = [];
+			const { app } = createApp({
+				onCacheHit: (key) => {
+					hits.push(key);
+				},
+			});
+			const key = "key-cache-hit";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(hits).toEqual([]);
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(hits).toEqual([key]);
+		});
+
+		it("onCacheMiss is called when processing a new request", async () => {
+			const misses: string[] = [];
+			const { app } = createApp({
+				onCacheMiss: (key) => {
+					misses.push(key);
+				},
+			});
+			const key = "key-cache-miss";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(misses).toEqual([key]);
+
+			// Replay — onCacheMiss should NOT be called again
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(misses).toEqual([key]);
+		});
+
+		it("both hooks work together", async () => {
+			const hits: string[] = [];
+			const misses: string[] = [];
+			const { app } = createApp({
+				onCacheHit: (key) => hits.push(key),
+				onCacheMiss: (key) => misses.push(key),
+			});
+			const key = "key-both-hooks";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(misses).toEqual([key]);
+			expect(hits).toEqual([]);
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(misses).toEqual([key]);
+			expect(hits).toEqual([key]);
+		});
+
+		it("async hooks are awaited", async () => {
+			const events: string[] = [];
+			const { app } = createApp({
+				onCacheHit: async () => {
+					await new Promise((r) => setTimeout(r, 1));
+					events.push("hit");
+				},
+				onCacheMiss: async () => {
+					await new Promise((r) => setTimeout(r, 1));
+					events.push("miss");
+				},
+			});
+			const key = "key-async-hooks";
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(events).toEqual(["miss"]);
+
+			await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(events).toEqual(["miss", "hit"]);
+		});
+
+		it("hooks receive context with request info", async () => {
+			let hitPath = "";
+			let missPath = "";
+			const store = memoryStore();
+			const app = new Hono();
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					onCacheHit: (_key, c) => {
+						hitPath = c.req.path;
+					},
+					onCacheMiss: (_key, c) => {
+						missPath = c.req.path;
+					},
+				}),
+			);
+			app.post("/api/hook-ctx", (c) => c.text("ok"));
+
+			const key = "key-hook-ctx";
+			await app.request("/api/hook-ctx", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(missPath).toBe("/api/hook-ctx");
+
+			await app.request("/api/hook-ctx", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(hitPath).toBe("/api/hook-ctx");
+		});
+
+		it("hooks are not called when no idempotency key is present", async () => {
+			const hits: string[] = [];
+			const misses: string[] = [];
+			const { app } = createApp({
+				onCacheHit: (key) => hits.push(key),
+				onCacheMiss: (key) => misses.push(key),
+			});
+
+			await app.request("/api/text", { method: "POST" });
+			expect(hits).toEqual([]);
+			expect(misses).toEqual([]);
+		});
+
+		it("hooks are not called for skipped methods", async () => {
+			const misses: string[] = [];
+			const { app } = createApp({
+				onCacheMiss: (key) => misses.push(key),
+			});
+
+			await app.request("/api/get", {
+				method: "GET",
+				headers: { "Idempotency-Key": "key-get" },
+			});
+			expect(misses).toEqual([]);
+		});
+
+		it("onCacheMiss fires again after handler failure allows retry", async () => {
+			const misses: string[] = [];
+			const store = memoryStore();
+			const app = new Hono();
+			let callCount = 0;
+			app.use("/api/*", idempotency({ store, onCacheMiss: (key) => misses.push(key) }));
+			app.post("/api/flaky", (c) => {
+				callCount++;
+				return callCount === 1 ? c.json({ error: "fail" }, 500) : c.json({ ok: true });
+			});
+
+			const key = "key-miss-retry";
+			await app.request("/api/flaky", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(misses).toEqual([key]);
+
+			// Retry after 500 — key was deleted, so onCacheMiss fires again
+			await app.request("/api/flaky", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(misses).toEqual([key, key]);
+		});
+
+		it("onCacheHit is not called on fingerprint mismatch", async () => {
+			const hits: string[] = [];
+			const { app } = createApp({ onCacheHit: (key) => hits.push(key) });
+			const key = "key-hit-no-mismatch";
+
+			await app.request("/api/create", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": key,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ a: 1 }),
+			});
+
+			// Different body → 422 fingerprint mismatch
+			await app.request("/api/create", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": key,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ a: 2 }),
+			});
+
+			expect(hits).toEqual([]);
+		});
+
+		it("hook errors are swallowed and do not break idempotency", async () => {
+			const { app } = createApp({
+				onCacheHit: () => {
+					throw new Error("hook exploded");
+				},
+				onCacheMiss: () => {
+					throw new Error("hook exploded");
+				},
+			});
+			const key = "key-hook-error";
+
+			// onCacheMiss throws — request should still succeed
+			const res1 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res1.status).toBe(200);
+
+			// onCacheHit throws — replay should still succeed
+			const res2 = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res2.status).toBe(200);
+			expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+		});
+	});
+
 	// Security: store key injection prevention
 	describe("store key safety", () => {
 		it("crafted prefix+key that would collide without encoding are isolated", async () => {
