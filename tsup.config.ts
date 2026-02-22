@@ -6,6 +6,7 @@ export default defineConfig({
 		"stores/memory": "src/stores/memory.ts",
 		"stores/cloudflare-kv": "src/stores/cloudflare-kv.ts",
 		"stores/cloudflare-d1": "src/stores/cloudflare-d1.ts",
+		"stores/redis": "src/stores/redis.ts",
 	},
 	format: ["esm", "cjs"],
 	dts: true,
