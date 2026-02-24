@@ -1,21 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { memoryStore } from "../../src/stores/memory.js";
-import type { IdempotencyRecord, StoredResponse } from "../../src/types.js";
+import { makeRecord, makeResponse } from "../helpers.js";
 
 describe("memoryStore", () => {
-	const makeRecord = (key: string, fingerprint = "fp-abc"): IdempotencyRecord => ({
-		key,
-		fingerprint,
-		status: "processing",
-		createdAt: Date.now(),
-	});
-
-	const makeResponse = (): StoredResponse => ({
-		status: 200,
-		headers: { "content-type": "application/json" },
-		body: '{"ok":true}',
-	});
-
 	beforeEach(() => {
 		vi.useFakeTimers();
 	});
@@ -199,6 +186,85 @@ describe("memoryStore", () => {
 		const purged = await store.purge();
 		expect(purged).toBe(0);
 		expect(store.size).toBe(1);
+	});
+
+	// Boundary: maxSize = 1
+	it("maxSize: 1 keeps only the latest entry", async () => {
+		const store = memoryStore({ maxSize: 1 });
+
+		await store.lock("a", makeRecord("a"));
+		expect(store.size).toBe(1);
+
+		await store.lock("b", makeRecord("b"));
+		expect(store.size).toBe(1);
+		expect(await store.get("a")).toBeUndefined();
+		expect(await store.get("b")).toBeDefined();
+	});
+
+	// Boundary: TTL exactly at boundary (>= means expired)
+	it("record expires at exactly TTL milliseconds (>= boundary)", async () => {
+		const store = memoryStore({ ttl: 1000 });
+		const record = makeRecord("key-1");
+
+		await store.lock("key-1", record);
+
+		// At TTL - 1ms: still alive
+		vi.advanceTimersByTime(999);
+		expect(await store.get("key-1")).toBeDefined();
+
+		// At exactly TTL: expired (>= semantics)
+		vi.advanceTimersByTime(1);
+		expect(await store.get("key-1")).toBeUndefined();
+	});
+
+	// Boundary: lock() on expired entry at exact TTL boundary
+	it("lock() re-acquires at exactly TTL boundary", async () => {
+		const store = memoryStore({ ttl: 1000 });
+		await store.lock("key-1", makeRecord("key-1", "fp-old"));
+
+		vi.advanceTimersByTime(1000);
+
+		const result = await store.lock("key-1", makeRecord("key-1", "fp-new"));
+		expect(result).toBe(true);
+		const saved = await store.get("key-1");
+		expect(saved?.fingerprint).toBe("fp-new");
+	});
+
+	// Edge: delete() on non-existent key is a no-op
+	it("delete() on non-existent key does not throw", async () => {
+		const store = memoryStore();
+		await expect(store.delete("nonexistent")).resolves.toBeUndefined();
+	});
+
+	// Edge: complete() on non-existent key is a no-op
+	it("complete() on non-existent key does not throw", async () => {
+		const store = memoryStore();
+		await expect(store.complete("nonexistent", makeResponse())).resolves.toBeUndefined();
+	});
+
+	// Edge: purge() on empty store returns 0
+	it("purge() on empty store returns 0", async () => {
+		const store = memoryStore();
+		const purged = await store.purge();
+		expect(purged).toBe(0);
+		expect(store.size).toBe(0);
+	});
+
+	// Boundary: maxSize eviction with sweep interaction
+	it("maxSize eviction after sweep removes only excess entries", async () => {
+		const store = memoryStore({ ttl: 1000, maxSize: 2 });
+
+		await store.lock("a", makeRecord("a"));
+		await store.lock("b", makeRecord("b"));
+		expect(store.size).toBe(2);
+
+		// Expire both
+		vi.advanceTimersByTime(1001);
+
+		// lock() triggers sweep (removes a, b), then adds c — no eviction needed
+		await store.lock("c", makeRecord("c"));
+		expect(store.size).toBe(1);
+		expect(await store.get("c")).toBeDefined();
 	});
 
 	it("uses default TTL of 24 hours", async () => {

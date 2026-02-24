@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { durableObjectStore } from "../../src/stores/durable-objects.js";
-import type { IdempotencyRecord, StoredResponse } from "../../src/types.js";
+import { makeRecord, makeResponse } from "../helpers.js";
 
 /**
  * Mock DurableObjectStorage backed by a Map.
@@ -31,19 +31,6 @@ function createMockStorage() {
 		},
 	};
 }
-
-const makeRecord = (key: string, fingerprint = "fp-abc"): IdempotencyRecord => ({
-	key,
-	fingerprint,
-	status: "processing",
-	createdAt: Date.now(),
-});
-
-const makeResponse = (): StoredResponse => ({
-	status: 200,
-	headers: { "content-type": "application/json" },
-	body: '{"ok":true}',
-});
 
 describe("durableObjectStore", () => {
 	beforeEach(() => {

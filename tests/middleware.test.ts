@@ -1279,6 +1279,229 @@ describe("idempotency middleware", () => {
 		});
 	});
 
+	// Boundary: maxKeyLength
+	describe("maxKeyLength boundary values", () => {
+		it("maxKeyLength: 1 accepts single-character key", async () => {
+			const { app } = createApp({ maxKeyLength: 1 });
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "x" },
+			});
+			expect(res.status).toBe(200);
+		});
+
+		it("maxKeyLength: 1 rejects two-character key", async () => {
+			const { app } = createApp({ maxKeyLength: 1 });
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "xx" },
+			});
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.code).toBe("KEY_TOO_LONG");
+		});
+
+		it("maxKeyLength: 0 rejects any non-empty key", async () => {
+			const { app } = createApp({ maxKeyLength: 0 });
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "a" },
+			});
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.detail).toContain("0");
+		});
+	});
+
+	// Boundary: methods option
+	describe("methods boundary values", () => {
+		it("methods: [] skips all requests", async () => {
+			let callCount = 0;
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, methods: [] }));
+			app.post("/api/counter", (c) => {
+				callCount++;
+				return c.json({ count: callCount });
+			});
+
+			const key = "key-empty-methods";
+			await app.request("/api/counter", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			await app.request("/api/counter", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(callCount).toBe(2);
+		});
+
+		it("custom methods: ['PUT'] applies idempotency to PUT only", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, methods: ["PUT"] }));
+			app.put("/api/resource", (c) => c.json({ updated: true }));
+			app.post("/api/resource", (c) => c.json({ created: true }));
+
+			const key = "key-put-method";
+
+			// PUT is idempotent
+			const res1 = await app.request("/api/resource", {
+				method: "PUT",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res1.status).toBe(200);
+
+			const res2 = await app.request("/api/resource", {
+				method: "PUT",
+				headers: { "Idempotency-Key": key },
+			});
+			expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+
+			// POST is not in methods list — passes through without idempotency
+			let postCount = 0;
+			const app2 = new Hono();
+			app2.use("/api/*", idempotency({ store: memoryStore(), methods: ["PUT"] }));
+			app2.post("/api/resource", (c) => {
+				postCount++;
+				return c.json({ count: postCount });
+			});
+			await app2.request("/api/resource", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-post-skip" },
+			});
+			await app2.request("/api/resource", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-post-skip" },
+			});
+			expect(postCount).toBe(2);
+		});
+	});
+
+	// Boundary: res.ok (status 200-299 cached, 300+ not cached)
+	describe("response status boundary", () => {
+		it("status 299 is cached (res.ok = true)", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store }));
+			app.post("/api/status-299", (c) => new Response("edge", { status: 299 }));
+
+			const key = "key-299";
+			await app.request("/api/status-299", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+
+			const storeKey = `POST:/api/status-299:${key}`;
+			const record = await store.get(storeKey);
+			expect(record?.status).toBe("completed");
+			expect(record?.response).toBeDefined();
+		});
+
+		it("status 300 is not cached (res.ok = false)", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store }));
+			app.post(
+				"/api/status-300",
+				(c) => new Response(null, { status: 300, headers: { Location: "/other" } }),
+			);
+
+			const key = "key-300";
+			await app.request("/api/status-300", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+
+			const storeKey = `POST:/api/status-300:${key}`;
+			const record = await store.get(storeKey);
+			expect(record).toBeUndefined();
+		});
+
+		it("status 200 is cached (lower bound)", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store }));
+			app.post("/api/ok", (c) => c.text("ok"));
+
+			const key = "key-200";
+			await app.request("/api/ok", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+
+			const storeKey = `POST:/api/ok:${key}`;
+			const record = await store.get(storeKey);
+			expect(record?.status).toBe("completed");
+		});
+
+		it("status 199 is not cached (below ok range)", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store }));
+			app.post("/api/status-199", () => new Response("info", { status: 199 }));
+
+			const key = "key-199";
+			await app.request("/api/status-199", {
+				method: "POST",
+				headers: { "Idempotency-Key": key },
+			});
+
+			const storeKey = `POST:/api/status-199:${key}`;
+			const record = await store.get(storeKey);
+			expect(record).toBeUndefined();
+		});
+	});
+
+	// Boundary: empty string cacheKeyPrefix
+	it("empty string cacheKeyPrefix is treated as no prefix", async () => {
+		const store = memoryStore();
+		const { app } = createApp({ store, cacheKeyPrefix: "" });
+		const key = "key-empty-prefix";
+
+		await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+
+		// Empty string is falsy → no prefix in store key
+		const record = await store.get(`POST:/api/text:${encodeURIComponent(key)}`);
+		expect(record?.status).toBe("completed");
+	});
+
+	// Boundary: completed record without response → falls through to lock() → 409
+	// because the non-expired record still exists in the store
+	it("completed record without response returns 409 (lock blocked by existing record)", async () => {
+		const store = memoryStore();
+		const fixedFp = "fixed-fingerprint";
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store, fingerprint: () => fixedFp }));
+		app.post("/api/text", (c) => c.text("hello"));
+
+		const key = "key-no-response";
+		const storeKey = `POST:/api/text:${encodeURIComponent(key)}`;
+
+		// Manually insert a completed record with matching fingerprint but no response
+		await store.lock(storeKey, {
+			key,
+			fingerprint: fixedFp,
+			status: "completed",
+			createdAt: Date.now(),
+		});
+
+		// existing.response is undefined → falls through → lock() fails → 409
+		const res = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res.status).toBe(409);
+		expect(res.headers.get("Retry-After")).toBe("1");
+	});
+
 	// Edge case: special characters in idempotency key
 	it("handles special characters in key correctly", async () => {
 		const { app } = createApp();
