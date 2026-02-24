@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { d1Store } from "../../src/stores/cloudflare-d1.js";
-import type { IdempotencyRecord, StoredResponse } from "../../src/types.js";
+import { makeRecord, makeResponse } from "../helpers.js";
 
 /**
  * Minimal D1Database mock that uses a Map to simulate SQL storage.
@@ -105,19 +105,6 @@ interface D1DatabaseMock {
 		first(): Promise<Record<string, unknown> | null>;
 	};
 }
-
-const makeRecord = (key: string, fingerprint = "fp-abc"): IdempotencyRecord => ({
-	key,
-	fingerprint,
-	status: "processing",
-	createdAt: Date.now(),
-});
-
-const makeResponse = (): StoredResponse => ({
-	status: 200,
-	headers: { "content-type": "application/json" },
-	body: '{"ok":true}',
-});
 
 describe("d1Store", () => {
 	beforeEach(() => {

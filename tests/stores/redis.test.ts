@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { redisStore } from "../../src/stores/redis.js";
-import type { IdempotencyRecord, StoredResponse } from "../../src/types.js";
+import { makeRecord, makeResponse } from "../helpers.js";
 
 /**
  * Mock Redis client backed by a Map with TTL support.
@@ -45,19 +45,6 @@ function createMockRedis() {
 		},
 	};
 }
-
-const makeRecord = (key: string, fingerprint = "fp-abc"): IdempotencyRecord => ({
-	key,
-	fingerprint,
-	status: "processing",
-	createdAt: Date.now(),
-});
-
-const makeResponse = (): StoredResponse => ({
-	status: 200,
-	headers: { "content-type": "application/json" },
-	body: '{"ok":true}',
-});
 
 describe("redisStore", () => {
 	beforeEach(() => {

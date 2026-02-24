@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { kvStore } from "../../src/stores/cloudflare-kv.js";
-import type { IdempotencyRecord, StoredResponse } from "../../src/types.js";
+import { makeRecord, makeResponse } from "../helpers.js";
 
 /**
  * Minimal KVNamespace mock that stores data in a Map.
@@ -31,19 +31,6 @@ interface KVNamespaceMock {
 	put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
 	delete(key: string): Promise<void>;
 }
-
-const makeRecord = (key: string, fingerprint = "fp-abc"): IdempotencyRecord => ({
-	key,
-	fingerprint,
-	status: "processing",
-	createdAt: Date.now(),
-});
-
-const makeResponse = (): StoredResponse => ({
-	status: 200,
-	headers: { "content-type": "application/json" },
-	body: '{"ok":true}',
-});
 
 describe("kvStore", () => {
 	it("lock() returns true and saves the record when key does not exist", async () => {
