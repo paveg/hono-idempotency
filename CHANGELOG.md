@@ -1,5 +1,17 @@
 # hono-idempotency
 
+## 0.7.0
+
+### Minor Changes
+
+- [#72](https://github.com/paveg/hono-idempotency/pull/72) [`788aeeb`](https://github.com/paveg/hono-idempotency/commit/788aeeb27a5a81d37e96a1a77186681451fd955e) Thanks [@paveg](https://github.com/paveg)! - Add hono-problem-details as optional peerDependency with runtime fallback
+
+  - Declare `hono-problem-details` as optional peerDependency
+  - When installed: error responses use `problemDetails().getResponse()` from hono-problem-details
+  - When not installed: falls back to existing self-contained implementation
+  - Detection is lazy (first error path only) — no overhead on happy path
+  - Public API (`problemResponse`, `ProblemDetail`, `IdempotencyErrors`) unchanged
+
 ## 0.6.0
 
 ### Minor Changes
