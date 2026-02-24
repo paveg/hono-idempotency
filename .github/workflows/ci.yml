@@ -31,3 +31,11 @@ jobs:
       - run: pnpm vitest run --coverage
 
       - run: pnpm build
+
+  ci-pass:
+    if: always()
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+        if: needs.ci.result != 'success'
