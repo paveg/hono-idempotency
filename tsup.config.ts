@@ -13,5 +13,5 @@ export default defineConfig({
 	dts: true,
 	clean: true,
 	sourcemap: true,
-	external: ["hono"],
+	external: ["hono", "hono-problem-details"],
 });

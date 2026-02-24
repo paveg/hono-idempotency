@@ -23,6 +23,9 @@ importers:
       hono:
         specifier: ^4.7.0
         version: 4.12.0
+      hono-problem-details:
+        specifier: 0.1.1
+        version: 0.1.1(hono@4.12.0)
       lefthook:
         specifier: 2.1.1
         version: 2.1.1
@@ -801,6 +804,34 @@ packages:
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
     engines: {node: '>=8'}
+
+  hono-problem-details@0.1.1:
+    resolution: {integrity: sha512-cGeoDvGjxLGrG1E095T5fcsFVghYfuOsPinIb3p2QlfYNuZ+w4zWzJcNgM7BoVgEhPCbmYXVXBEZ4cPD34yXPg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@hono/standard-validator': '*'
+      '@hono/valibot-validator': '*'
+      '@hono/zod-openapi': '*'
+      '@hono/zod-validator': '*'
+      '@standard-schema/spec': '*'
+      hono: '>=4.0.0'
+      valibot: '*'
+      zod: '*'
+    peerDependenciesMeta:
+      '@hono/standard-validator':
+        optional: true
+      '@hono/valibot-validator':
+        optional: true
+      '@hono/zod-openapi':
+        optional: true
+      '@hono/zod-validator':
+        optional: true
+      '@standard-schema/spec':
+        optional: true
+      valibot:
+        optional: true
+      zod:
+        optional: true
 
   hono@4.12.0:
     resolution: {integrity: sha512-NekXntS5M94pUfiVZ8oXXK/kkri+5WpX2/Ik+LVsl+uvw+soj4roXIsPqO+XsWrAw20mOzaXOZf3Q7PfB9A/IA==}
@@ -2149,6 +2180,10 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   has-flag@4.0.0: {}
+
+  hono-problem-details@0.1.1(hono@4.12.0):
+    dependencies:
+      hono: 4.12.0
 
   hono@4.12.0: {}
 
