@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import { getHonoProblemDetails } from "./compat.js";
 import { IdempotencyErrors, type ProblemDetail, problemResponse } from "./errors.js";
 import { generateFingerprint } from "./fingerprint.js";
 import type { IdempotencyEnv, IdempotencyOptions, StoredResponse } from "./types.js";
@@ -32,8 +33,28 @@ export function idempotency(options: IdempotencyOptions) {
 			return next();
 		}
 
-		const errorResponse = (problem: ProblemDetail, extraHeaders?: Record<string, string>) =>
-			onError ? onError(problem, c) : problemResponse(problem, extraHeaders);
+		const errorResponse = async (problem: ProblemDetail, extraHeaders?: Record<string, string>) => {
+			if (onError) return onError(problem, c);
+			const pd = await getHonoProblemDetails();
+			if (pd) {
+				const response = pd
+					.problemDetails({
+						type: problem.type,
+						title: problem.title,
+						status: problem.status,
+						detail: problem.detail,
+						extensions: { code: problem.code },
+					})
+					.getResponse();
+				if (extraHeaders) {
+					for (const [key, value] of Object.entries(extraHeaders)) {
+						response.headers.set(key, value);
+					}
+				}
+				return response;
+			}
+			return problemResponse(problem, extraHeaders);
+		};
 
 		const key = c.req.header(headerName);
 
