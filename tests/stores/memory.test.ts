@@ -124,15 +124,17 @@ describe("memoryStore", () => {
 		expect(await store.get("alive-2")).toBeDefined();
 	});
 
-	// maxSize: evicts oldest entries when capacity is exceeded
-	it("evicts oldest entry when maxSize is reached", async () => {
+	// maxSize: evicts oldest completed entries when capacity is exceeded
+	it("evicts oldest completed entry when maxSize is reached", async () => {
 		const store = memoryStore({ maxSize: 2 });
 
 		await store.lock("a", makeRecord("a"));
+		await store.complete("a", makeResponse());
 		await store.lock("b", makeRecord("b"));
+		await store.complete("b", makeResponse());
 		expect(store.size).toBe(2);
 
-		// Third insert triggers eviction of oldest ("a")
+		// Third insert triggers eviction of oldest completed ("a")
 		await store.lock("c", makeRecord("c"));
 		expect(store.size).toBe(2);
 		expect(await store.get("a")).toBeUndefined();
@@ -193,6 +195,7 @@ describe("memoryStore", () => {
 		const store = memoryStore({ maxSize: 1 });
 
 		await store.lock("a", makeRecord("a"));
+		await store.complete("a", makeResponse());
 		expect(store.size).toBe(1);
 
 		await store.lock("b", makeRecord("b"));
@@ -248,6 +251,40 @@ describe("memoryStore", () => {
 		const purged = await store.purge();
 		expect(purged).toBe(0);
 		expect(store.size).toBe(0);
+	});
+
+	// maxSize eviction must not remove processing records (idempotency guarantee)
+	it("maxSize eviction skips processing records to preserve idempotency", async () => {
+		const store = memoryStore({ maxSize: 2 });
+
+		// "a" is still processing (simulates a slow handler)
+		await store.lock("a", makeRecord("a", "fp-a"));
+		// "b" is completed
+		await store.lock("b", makeRecord("b", "fp-b"));
+		await store.complete("b", makeResponse());
+
+		// "c" triggers eviction — must evict "b" (completed), not "a" (processing)
+		await store.lock("c", makeRecord("c", "fp-c"));
+		expect(store.size).toBe(2);
+		expect(await store.get("a")).toBeDefined();
+		expect((await store.get("a"))?.status).toBe("processing");
+		expect(await store.get("b")).toBeUndefined();
+		expect(await store.get("c")).toBeDefined();
+	});
+
+	it("maxSize eviction does not evict when all entries are processing", async () => {
+		const store = memoryStore({ maxSize: 2 });
+
+		await store.lock("a", makeRecord("a"));
+		await store.lock("b", makeRecord("b"));
+
+		// Both are processing — eviction should fail gracefully, allowing size > maxSize
+		const result = await store.lock("c", makeRecord("c"));
+		expect(result).toBe(true);
+		expect(store.size).toBe(3); // exceeds maxSize because all are processing
+		expect(await store.get("a")).toBeDefined();
+		expect(await store.get("b")).toBeDefined();
+		expect(await store.get("c")).toBeDefined();
 	});
 
 	// Boundary: maxSize eviction with sweep interaction
