@@ -1,6 +1,6 @@
 {
 	"name": "hono-idempotency",
-	"version": "0.7.0",
+	"version": "0.7.1",
 	"description": "Stripe-style Idempotency-Key middleware for Hono. IETF draft-ietf-httpapi-idempotency-key-header compliant.",
 	"type": "module",
 	"main": "./dist/index.cjs",

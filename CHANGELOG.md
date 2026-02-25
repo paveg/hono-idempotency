@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.7.1
+
+### Patch Changes
+
+- [#81](https://github.com/paveg/hono-idempotency/pull/81) [`1858525`](https://github.com/paveg/hono-idempotency/commit/18585258d0fbd3f4cd5343e2c3a2af6f2a88dc9c) Thanks [@paveg](https://github.com/paveg)! - Add maxBodySize option to prevent DoS via large request bodies
+
 ## 0.7.0
 
 ### Minor Changes
