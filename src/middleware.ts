@@ -72,12 +72,22 @@ export function idempotency(options: IdempotencyOptions) {
 
 		if (maxBodySize != null) {
 			const cl = c.req.header("Content-Length");
-			if (cl && Number.parseInt(cl, 10) > maxBodySize) {
-				return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
+			if (cl) {
+				const parsed = Number.parseInt(cl, 10);
+				if (parsed < 0 || parsed > maxBodySize) {
+					return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
+				}
 			}
 		}
 
 		const body = await c.req.text();
+
+		if (maxBodySize != null) {
+			const byteLength = new TextEncoder().encode(body).length;
+			if (byteLength > maxBodySize) {
+				return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
+			}
+		}
 		const fp = customFingerprint
 			? await customFingerprint(c)
 			: await generateFingerprint(c.req.method, c.req.path, body);
