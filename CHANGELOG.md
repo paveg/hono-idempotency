@@ -1,5 +1,23 @@
 # hono-idempotency
 
+## 0.8.0
+
+### Minor Changes
+
+- [#105](https://github.com/paveg/hono-idempotency/pull/105) [`0a0ce02`](https://github.com/paveg/hono-idempotency/commit/0a0ce02a43dd4a3c07110b38d4a1843a2c457faf) Thanks [@paveg](https://github.com/paveg)! - Guard JSON.stringify in all store adapters, add clampHttpStatus helper, validate Response status
+
+  - Wrap `JSON.stringify` in try/catch across redis, cloudflare-kv, cloudflare-d1 stores (lock returns false, complete is no-op on failure)
+  - Add `clampHttpStatus` helper (exported) to validate HTTP status codes (200-599, else 500)
+  - Apply status clamping in `problemResponse()` and `replayResponse()` to prevent RangeError
+  - `problemResponse()` falls back to 500 when JSON.stringify fails
+  - Enforce `maxBodySize` against actual body bytes, not just Content-Length header
+  - memoryStore FIFO eviction now skips processing records
+  - Redis and KV `complete()` preserves TTL from creation time
+  - KV `lock()` uses lockId for reliable read-back verification
+  - Delete corrupt completed records (no response) instead of returning 409
+  - Validate key byte length (UTF-8), guard JSON.parse in redis get(), lazy-delete expired DO records
+  - Update hono-problem-details to 0.1.4
+
 ## 0.7.2
 
 ### Patch Changes
