@@ -121,7 +121,7 @@
 		"@changesets/cli": "2.29.8",
 		"@vitest/coverage-v8": "3.2.4",
 		"hono": "^4.7.0",
-		"hono-problem-details": "0.1.1",
+		"hono-problem-details": "0.1.2",
 		"lefthook": "2.1.1",
 		"tsup": "^8.0.0",
 		"typescript": "^5.7.0",
