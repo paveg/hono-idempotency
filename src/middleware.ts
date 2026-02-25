@@ -20,6 +20,7 @@ export function idempotency(options: IdempotencyOptions) {
 		skipRequest,
 		onError,
 		cacheKeyPrefix,
+		maxBodySize,
 		onCacheHit,
 		onCacheMiss,
 	} = options;
@@ -67,6 +68,13 @@ export function idempotency(options: IdempotencyOptions) {
 
 		if (key.length > maxKeyLength) {
 			return errorResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
+		}
+
+		if (maxBodySize != null) {
+			const cl = c.req.header("Content-Length");
+			if (cl && Number.parseInt(cl, 10) > maxBodySize) {
+				return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
+			}
 		}
 
 		const body = await c.req.text();
