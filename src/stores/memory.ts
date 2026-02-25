@@ -55,8 +55,15 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 			map.set(key, record);
 			if (maxSize !== undefined) {
 				while (map.size > maxSize) {
-					const oldest = map.keys().next().value;
-					if (oldest !== undefined) map.delete(oldest);
+					let evicted = false;
+					for (const [k, r] of map) {
+						if (r.status !== "processing") {
+							map.delete(k);
+							evicted = true;
+							break;
+						}
+					}
+					if (!evicted) break;
 				}
 			}
 			return true;
