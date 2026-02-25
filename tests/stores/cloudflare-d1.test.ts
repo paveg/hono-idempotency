@@ -184,6 +184,22 @@ describe("d1Store", () => {
 		expect(await store.get("nonexistent")).toBeUndefined();
 	});
 
+	it("complete() is a no-op when JSON.stringify throws on response", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+			throw new TypeError("BigInt serialization");
+		});
+
+		await store.complete("key-1", makeResponse());
+		vi.restoreAllMocks();
+
+		const saved = await store.get("key-1");
+		expect(saved?.status).toBe("processing");
+	});
+
 	it("uses custom table name", async () => {
 		const db = createMockD1();
 		const store = d1Store({ database: db as never, tableName: "custom_table" });

@@ -1,6 +1,11 @@
 import { createMiddleware } from "hono/factory";
 import { getHonoProblemDetails } from "./compat.js";
-import { IdempotencyErrors, type ProblemDetail, problemResponse } from "./errors.js";
+import {
+	IdempotencyErrors,
+	type ProblemDetail,
+	clampHttpStatus,
+	problemResponse,
+} from "./errors.js";
 import { generateFingerprint } from "./fingerprint.js";
 import type { IdempotencyEnv, IdempotencyOptions, StoredResponse } from "./types.js";
 
@@ -191,7 +196,7 @@ function replayResponse(stored: StoredResponse) {
 	headers.set("Idempotency-Replayed", "true");
 
 	return new Response(stored.body, {
-		status: stored.status,
+		status: clampHttpStatus(stored.status),
 		headers,
 	});
 }

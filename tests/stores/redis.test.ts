@@ -223,6 +223,36 @@ describe("redisStore", () => {
 		expect(capturedOpts?.NX).toBeUndefined();
 	});
 
+	it("lock() returns false when JSON.stringify throws", async () => {
+		const client = createMockRedis();
+		const store = redisStore({ client });
+		const record = makeRecord("key-1");
+
+		vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+			throw new TypeError("BigInt serialization");
+		});
+
+		const result = await store.lock("key-1", record);
+		expect(result).toBe(false);
+		vi.restoreAllMocks();
+	});
+
+	it("complete() is a no-op when JSON.stringify throws", async () => {
+		const client = createMockRedis();
+		const store = redisStore({ client });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+			throw new TypeError("BigInt serialization");
+		});
+
+		await store.complete("key-1", makeResponse());
+		vi.restoreAllMocks();
+
+		const saved = await store.get("key-1");
+		expect(saved?.status).toBe("processing");
+	});
+
 	it("complete() uses remaining TTL from creation, not full TTL", async () => {
 		const client = createMockRedis();
 		let capturedOpts: { NX?: boolean; EX?: number } | undefined;

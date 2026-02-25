@@ -88,9 +88,15 @@ export function d1Store(options: D1StoreOptions): IdempotencyStore {
 
 		async complete(key, response) {
 			await ensureTable();
+			let serialized: string;
+			try {
+				serialized = JSON.stringify(response);
+			} catch {
+				return;
+			}
 			await db
 				.prepare(`UPDATE ${tableName} SET status = ?, response = ? WHERE key = ?`)
-				.bind("completed", JSON.stringify(response), key)
+				.bind("completed", serialized, key)
 				.run();
 		},
 

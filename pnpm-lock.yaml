@@ -24,8 +24,8 @@ importers:
         specifier: ^4.7.0
         version: 4.12.0
       hono-problem-details:
-        specifier: 0.1.2
-        version: 0.1.2(hono@4.12.0)
+        specifier: 0.1.4
+        version: 0.1.4(hono@4.12.0)
       lefthook:
         specifier: 2.1.1
         version: 2.1.1
@@ -805,8 +805,8 @@ packages:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
     engines: {node: '>=8'}
 
-  hono-problem-details@0.1.2:
-    resolution: {integrity: sha512-Rbr6/uWU8WhSzXrjO7LugpUCLEqxCAiPS5kEJQRY91Z/Vt6lLhN6QLvotkewJUq9ipiSk3YZ7eGzwFTeJA2rlw==}
+  hono-problem-details@0.1.4:
+    resolution: {integrity: sha512-AbBL2xgi8GdHi/2pPUURLQV7zaZBkuvLFk6t7Mi8aFA+EvONsNpdLd5oC3rIQGQt3rrfTDdswgAz+77WrY+MZQ==}
     engines: {node: '>=20'}
     peerDependencies:
       '@hono/standard-validator': '*'
@@ -2181,7 +2181,7 @@ snapshots:
 
   has-flag@4.0.0: {}
 
-  hono-problem-details@0.1.2(hono@4.12.0):
+  hono-problem-details@0.1.4(hono@4.12.0):
     dependencies:
       hono: 4.12.0
 
