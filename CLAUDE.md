@@ -2,11 +2,11 @@
 
 ## Project
 
-Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpapi-idempotency-key-header compliant.
+Stripe-style Idempotency-Key middleware for Hono (v0.7.2). IETF draft-ietf-httpapi-idempotency-key-header compliant.
 
 ## Commands
 
-- `pnpm test` — Run tests (vitest, 127 tests across 7 files)
+- `pnpm test` — Run tests (vitest, 168 tests across 8 files)
 - `pnpm build` — Build ESM + CJS (tsup)
 - `pnpm lint` — Check linting (biome)
 - `pnpm lint:fix` — Auto-fix lint issues
@@ -19,7 +19,7 @@ Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpa
 - `src/middleware.ts` — Core middleware (method filter, skipRequest, key validation, fingerprint, cacheKeyPrefix, lock/complete/delete flow, onError)
 - `src/stores/` — Store adapters (all production-ready: `memory.ts`, `redis.ts`, `cloudflare-kv.ts`, `cloudflare-d1.ts`, `durable-objects.ts`)
 - `src/stores/types.ts` — `IdempotencyStore` interface (`get/lock/complete/delete/purge`)
-- `src/errors.ts` — RFC 9457 Problem Details with `IdempotencyErrorCode` (`MISSING_KEY | KEY_TOO_LONG | FINGERPRINT_MISMATCH | CONFLICT`)
+- `src/errors.ts` — RFC 9457 Problem Details with `IdempotencyErrorCode` (`MISSING_KEY | KEY_TOO_LONG | BODY_TOO_LARGE | FINGERPRINT_MISMATCH | CONFLICT`)
 - `src/fingerprint.ts` — SHA-256 fingerprint via Web Crypto API
 - `src/types.ts` — `IdempotencyOptions`, `IdempotencyEnv`, `IdempotencyRecord`, `StoredResponse`
 - Store key format: `${encodeURIComponent(prefix)}:${method}:${path}:${encodeURIComponent(key)}` (prefix omitted when not set)
@@ -33,20 +33,23 @@ Stripe-style Idempotency-Key middleware for Hono (v0.5.0). IETF draft-ietf-httpa
 | `fingerprint` | `(c: Context) => string \| Promise<string>` | Custom fingerprint (default: SHA-256 of method+path+body) |
 | `required` | `boolean` | Require key on all requests (default: `false`) |
 | `methods` | `string[]` | HTTP methods to apply (default: `["POST", "PATCH"]`) |
-| `maxKeyLength` | `number` | Max key length (default: 256) |
+| `maxKeyLength` | `number` | Max key byte length in UTF-8 (default: 256) |
+| `maxBodySize` | `number` | Max request body size in bytes. Pre-checked via Content-Length, enforced against actual body |
 | `skipRequest` | `(c: Context) => boolean \| Promise<boolean>` | Per-request opt-out |
 | `onError` | `(error: ProblemDetail, c: Context) => Response \| Promise<Response>` | Custom error response |
 | `cacheKeyPrefix` | `string \| ((c: Context) => string \| Promise<string>)` | Multi-tenant key prefix |
+| `onCacheHit` | `(key: string, c: Context) => void \| Promise<void>` | Called when replaying cached response |
+| `onCacheMiss` | `(key: string, c: Context) => void \| Promise<void>` | Called when processing new request (lock acquired) |
 
 ### Store implementations
 
 | Store | TTL | `purge()` | Notes |
 |-------|-----|-----------|-------|
-| `memoryStore` | In-process sweep on `lock()` + `get()` | Sweeps expired entries, returns count | `maxSize` for FIFO eviction |
-| `redisStore` | Redis `EX` (automatic) | No-op, returns 0 | Atomic `SET NX EX`; works with ioredis, node-redis, @upstash/redis |
-| `kvStore` | KV `expirationTtl` (automatic) | No-op, returns 0 | Cloudflare KV handles expiry |
-| `d1Store` | SQL `WHERE created_at < ?` filter | `DELETE WHERE created_at < ?`, returns count | Table name regex-validated |
-| `durableObjectStore` | `createdAt` threshold (manual) | `list()` + filter + `delete()`, returns count | DO single-writer guarantees lock atomicity |
+| `memoryStore` | In-process sweep on `lock()` + `get()` (ms) | Sweeps expired entries, returns count | `maxSize` FIFO eviction (skips processing) |
+| `redisStore` | Redis `EX` from `createdAt` (seconds) | No-op, returns 0 | Atomic `SET NX EX`; works with ioredis, node-redis, @upstash/redis |
+| `kvStore` | KV `expirationTtl` from `createdAt` (seconds) | No-op, returns 0 | Best-effort race detection via `lockId` read-back |
+| `d1Store` | SQL `WHERE created_at < ?` filter (seconds) | `DELETE WHERE created_at < ?`, returns count | Table name regex-validated |
+| `durableObjectStore` | `createdAt` threshold + lazy-delete on `get()` (ms) | `list()` + filter + `delete()`, returns count | DO single-writer guarantees lock atomicity |
 
 ## Conventions
 
