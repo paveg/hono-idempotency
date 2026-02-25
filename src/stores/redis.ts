@@ -24,7 +24,11 @@ export function redisStore(options: RedisStoreOptions): IdempotencyStore {
 		async get(key) {
 			const raw = await client.get(key);
 			if (!raw) return undefined;
-			return JSON.parse(raw) as IdempotencyRecord;
+			try {
+				return JSON.parse(raw) as IdempotencyRecord;
+			} catch {
+				return undefined;
+			}
 		},
 
 		async lock(key, record) {

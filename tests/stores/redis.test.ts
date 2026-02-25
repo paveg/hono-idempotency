@@ -98,6 +98,14 @@ describe("redisStore", () => {
 		expect(await store.get("nonexistent")).toBeUndefined();
 	});
 
+	it("get() returns undefined for corrupt JSON data instead of throwing", async () => {
+		const client = createMockRedis();
+		client.data.set("corrupt-key", { value: "not-valid-json{{{", expireAt: undefined });
+		const store = redisStore({ client });
+
+		expect(await store.get("corrupt-key")).toBeUndefined();
+	});
+
 	it("complete() updates status and attaches response", async () => {
 		const client = createMockRedis();
 		const store = redisStore({ client });

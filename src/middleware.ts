@@ -66,7 +66,7 @@ export function idempotency(options: IdempotencyOptions) {
 			return next();
 		}
 
-		if (key.length > maxKeyLength) {
+		if (new TextEncoder().encode(key).length > maxKeyLength) {
 			return errorResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
 		}
 

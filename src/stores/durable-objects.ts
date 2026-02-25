@@ -29,7 +29,10 @@ export function durableObjectStore(options: DurableObjectStoreOptions): Idempote
 		async get(key) {
 			const record = await storage.get<IdempotencyRecord>(key);
 			if (!record) return undefined;
-			if (isExpired(record)) return undefined;
+			if (isExpired(record)) {
+				await storage.delete(key);
+				return undefined;
+			}
 			return record;
 		},
 
