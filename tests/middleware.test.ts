@@ -1439,19 +1439,19 @@ describe("idempotency middleware", () => {
 			expect(record?.status).toBe("completed");
 		});
 
-		it("status 199 is not cached (below ok range)", async () => {
+		it("status 400 is not cached (client error)", async () => {
 			const store = memoryStore();
 			const app = new Hono();
 			app.use("/api/*", idempotency({ store }));
-			app.post("/api/status-199", () => new Response("info", { status: 199 }));
+			app.post("/api/status-400", () => new Response("bad request", { status: 400 }));
 
-			const key = "key-199";
-			await app.request("/api/status-199", {
+			const key = "key-400";
+			await app.request("/api/status-400", {
 				method: "POST",
 				headers: { "Idempotency-Key": key },
 			});
 
-			const storeKey = `POST:/api/status-199:${key}`;
+			const storeKey = `POST:/api/status-400:${key}`;
 			const record = await store.get(storeKey);
 			expect(record).toBeUndefined();
 		});
