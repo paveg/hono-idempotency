@@ -114,6 +114,9 @@ export function idempotency(options: IdempotencyOptions) {
 				await safeHook(onCacheHit, key, c);
 				return replayResponse(existing.response);
 			}
+
+			// Completed but no response — corrupt record; delete so lock() can re-acquire
+			await store.delete(storeKey);
 		}
 
 		const record = {
