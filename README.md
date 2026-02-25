@@ -345,6 +345,8 @@ All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9
 | 409 | `CONFLICT` | `/errors/conflict` | Concurrent request with same key |
 | 422 | `FINGERPRINT_MISMATCH` | `/errors/fingerprint-mismatch` | Same key, different request body |
 
+When [hono-problem-details](https://github.com/paveg/hono-problem-details) is installed, error responses are generated using its `problemDetails().getResponse()`. Otherwise, a built-in fallback is used. No configuration needed — detection is automatic.
+
 ## Accessing the Key in Handlers
 
 The middleware sets `idempotencyKey` on the Hono context:
