@@ -211,7 +211,27 @@ describe("redisStore", () => {
 		await store.complete("key-1", makeResponse());
 
 		// complete() should set EX but NOT NX (needs to overwrite)
-		expect(capturedOpts?.EX).toBe(3600);
+		expect(capturedOpts?.EX).toBeDefined();
 		expect(capturedOpts?.NX).toBeUndefined();
+	});
+
+	it("complete() uses remaining TTL from creation, not full TTL", async () => {
+		const client = createMockRedis();
+		let capturedOpts: { NX?: boolean; EX?: number } | undefined;
+		const originalSet = client.set.bind(client);
+		client.set = async (key: string, value: string, opts?: { NX?: boolean; EX?: number }) => {
+			capturedOpts = opts;
+			return originalSet(key, value, opts);
+		};
+
+		const store = redisStore({ client, ttl: 3600 });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		// Simulate handler taking 600 seconds
+		vi.advanceTimersByTime(600 * 1000);
+		await store.complete("key-1", makeResponse());
+
+		// Remaining TTL should be 3600 - 600 = 3000, not 3600
+		expect(capturedOpts?.EX).toBe(3000);
 	});
 });
