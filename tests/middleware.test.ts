@@ -1593,7 +1593,7 @@ describe("idempotency middleware", () => {
 			expect(res.status).toBe(200);
 		});
 
-		it("skips check when Content-Length is missing", async () => {
+		it("rejects large body even when Content-Length header is missing", async () => {
 			const store = memoryStore();
 			const app = new Hono();
 			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
@@ -1601,9 +1601,45 @@ describe("idempotency middleware", () => {
 
 			const res = await app.request("/api/text", {
 				method: "POST",
-				headers: { "Idempotency-Key": "key-no-cl" },
+				headers: { "Idempotency-Key": "key-no-cl-large" },
+				body: "x".repeat(200),
+			});
+			expect(res.status).toBe(413);
+			const body = await res.json();
+			expect(body.code).toBe("BODY_TOO_LARGE");
+		});
+
+		it("allows small body when Content-Length header is missing", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-no-cl-small" },
+				body: "x".repeat(50),
 			});
 			expect(res.status).toBe(200);
+		});
+
+		it("rejects request when Content-Length is negative", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-negative-cl",
+					"Content-Length": "-1",
+				},
+				body: "x".repeat(200),
+			});
+			expect(res.status).toBe(413);
+			const body = await res.json();
+			expect(body.code).toBe("BODY_TOO_LARGE");
 		});
 	});
 
