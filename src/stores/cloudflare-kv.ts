@@ -17,6 +17,11 @@ export interface KVStoreOptions {
 	ttl?: number;
 }
 
+/**
+ * KV is eventually consistent — lock() uses write-first with read-back
+ * verification for best-effort race detection but cannot guarantee atomicity.
+ * For strict concurrency guarantees, use d1Store or durableObjectStore.
+ */
 export function kvStore(options: KVStoreOptions): IdempotencyStore {
 	const { namespace: kv, ttl = DEFAULT_TTL } = options;
 
@@ -28,11 +33,13 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 
 		async lock(key, record) {
 			const existing = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
-			if (existing) {
-				return false;
-			}
+			if (existing) return false;
+
 			await kv.put(key, JSON.stringify(record), { expirationTtl: ttl });
-			return true;
+
+			// Read-back verification: detect if a concurrent writer overwrote our record
+			const stored = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
+			return stored?.fingerprint === record.fingerprint;
 		},
 
 		async complete(key, response) {

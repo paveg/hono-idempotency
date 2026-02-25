@@ -139,4 +139,24 @@ describe("kvStore", () => {
 		await store.complete("nonexistent", makeResponse());
 		expect(await store.get("nonexistent")).toBeUndefined();
 	});
+
+	it("lock() read-back detects overwrite by concurrent writer", async () => {
+		const kv = createMockKV();
+		const originalPut = kv.put.bind(kv);
+		let putCount = 0;
+		// Simulate concurrent writer overwriting between put and read-back
+		kv.put = async (key: string, value: string, opts?: { expirationTtl?: number }) => {
+			await originalPut(key, value, opts);
+			putCount++;
+			if (putCount === 1) {
+				// Concurrent writer overwrites with different fingerprint
+				const hijacked = { ...JSON.parse(value), fingerprint: "hijacked" };
+				await originalPut(key, JSON.stringify(hijacked), opts);
+			}
+		};
+
+		const store = kvStore({ namespace: kv as never });
+		const result = await store.lock("key-1", makeRecord("key-1", "original-fp"));
+		expect(result).toBe(false);
+	});
 });
