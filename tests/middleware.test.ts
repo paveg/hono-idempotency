@@ -1473,9 +1473,8 @@ describe("idempotency middleware", () => {
 		expect(record?.status).toBe("completed");
 	});
 
-	// Boundary: completed record without response → falls through to lock() → 409
-	// because the non-expired record still exists in the store
-	it("completed record without response returns 409 (lock blocked by existing record)", async () => {
+	// Boundary: completed record without response → corrupt record is deleted and re-executed
+	it("completed record without response deletes corrupt record and re-executes", async () => {
 		const store = memoryStore();
 		const fixedFp = "fixed-fingerprint";
 		const app = new Hono();
@@ -1493,13 +1492,13 @@ describe("idempotency middleware", () => {
 			createdAt: Date.now(),
 		});
 
-		// existing.response is undefined → falls through → lock() fails → 409
+		// Corrupt record should be deleted and handler re-executed
 		const res = await app.request("/api/text", {
 			method: "POST",
 			headers: { "Idempotency-Key": key },
 		});
-		expect(res.status).toBe(409);
-		expect(res.headers.get("Retry-After")).toBe("1");
+		expect(res.status).toBe(200);
+		expect(await res.text()).toBe("hello");
 	});
 
 	// Edge case: special characters in idempotency key
