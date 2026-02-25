@@ -1542,6 +1542,71 @@ describe("idempotency middleware", () => {
 		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
 	});
 
+	// maxBodySize: rejects large bodies before fingerprinting
+	describe("maxBodySize", () => {
+		it("rejects request when Content-Length exceeds maxBodySize", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-body-too-large",
+					"Content-Length": "200",
+				},
+				body: "x".repeat(200),
+			});
+			expect(res.status).toBe(413);
+			const body = await res.json();
+			expect(body.code).toBe("BODY_TOO_LARGE");
+		});
+
+		it("allows request when Content-Length is within maxBodySize", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-body-ok",
+					"Content-Length": "50",
+				},
+				body: "x".repeat(50),
+			});
+			expect(res.status).toBe(200);
+		});
+
+		it("defaults to no limit when maxBodySize is not set", async () => {
+			const { app } = createApp();
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-no-limit",
+				},
+				body: "x".repeat(10000),
+			});
+			expect(res.status).toBe(200);
+		});
+
+		it("skips check when Content-Length is missing", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": "key-no-cl" },
+			});
+			expect(res.status).toBe(200);
+		});
+	});
+
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
 	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
 		let callCount = 0;

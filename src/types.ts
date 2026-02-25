@@ -29,6 +29,8 @@ export interface IdempotencyOptions {
 	required?: boolean;
 	methods?: string[];
 	maxKeyLength?: number;
+	/** Maximum request body size in bytes. Checked via Content-Length header before reading the body. */
+	maxBodySize?: number;
 	/** Should be a lightweight, side-effect-free predicate. Avoid reading the request body. */
 	skipRequest?: (c: Context) => boolean | Promise<boolean>;
 	/** Return a Response with an error status (4xx/5xx). Returning 2xx bypasses idempotency guarantees. */

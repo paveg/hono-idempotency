@@ -1,6 +1,7 @@
 export type IdempotencyErrorCode =
 	| "MISSING_KEY"
 	| "KEY_TOO_LONG"
+	| "BODY_TOO_LARGE"
 	| "FINGERPRINT_MISMATCH"
 	| "CONFLICT";
 
@@ -45,6 +46,16 @@ export const IdempotencyErrors = {
 			status: 400,
 			detail: `Idempotency-Key must be at most ${maxLength} characters`,
 			code: "KEY_TOO_LONG",
+		};
+	},
+
+	bodyTooLarge(maxSize: number): ProblemDetail {
+		return {
+			type: `${BASE_URL}/body-too-large`,
+			title: "Request body is too large",
+			status: 413,
+			detail: `Request body must be at most ${maxSize} bytes`,
+			code: "BODY_TOO_LARGE",
 		};
 	},
 
