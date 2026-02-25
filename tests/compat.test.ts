@@ -30,13 +30,16 @@ describe("getHonoProblemDetails", () => {
 	});
 
 	it("caches null when module is not available", async () => {
-		vi.doMock("hono-problem-details", () => {
+		const factory = vi.fn(() => {
 			throw new Error("Cannot find module 'hono-problem-details'");
 		});
+		vi.doMock("hono-problem-details", factory);
 		const { getHonoProblemDetails } = await import("../src/compat.js");
 		await getHonoProblemDetails();
 		const second = await getHonoProblemDetails();
 		expect(second).toBeNull();
+		// import() must be attempted only once — second call uses cached null
+		expect(factory).toHaveBeenCalledTimes(1);
 	});
 });
 
