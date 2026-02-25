@@ -47,7 +47,9 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 			if (!record) return;
 			record.status = "completed";
 			record.response = response;
-			await kv.put(key, JSON.stringify(record), { expirationTtl: ttl });
+			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);
+			const remaining = Math.max(1, ttl - elapsed);
+			await kv.put(key, JSON.stringify(record), { expirationTtl: remaining });
 		},
 
 		async delete(key) {

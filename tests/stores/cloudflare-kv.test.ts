@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { kvStore } from "../../src/stores/cloudflare-kv.js";
 import { makeRecord, makeResponse } from "../helpers.js";
 
@@ -33,6 +33,14 @@ interface KVNamespaceMock {
 }
 
 describe("kvStore", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it("lock() returns true and saves the record when key does not exist", async () => {
 		const kv = createMockKV();
 		const store = kvStore({ namespace: kv as never });
@@ -138,6 +146,26 @@ describe("kvStore", () => {
 		// Should not throw
 		await store.complete("nonexistent", makeResponse());
 		expect(await store.get("nonexistent")).toBeUndefined();
+	});
+
+	it("complete() uses remaining TTL from creation, not full TTL", async () => {
+		const kv = createMockKV();
+		let capturedOpts: { expirationTtl?: number } | undefined;
+		const originalPut = kv.put.bind(kv);
+		kv.put = async (key: string, value: string, opts?: { expirationTtl?: number }) => {
+			capturedOpts = opts;
+			return originalPut(key, value, opts);
+		};
+
+		const store = kvStore({ namespace: kv as never, ttl: 3600 });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		// Simulate handler taking 600 seconds
+		vi.advanceTimersByTime(600 * 1000);
+		await store.complete("key-1", makeResponse());
+
+		// Remaining TTL should be 3600 - 600 = 3000, not 3600
+		expect(capturedOpts?.expirationTtl).toBe(3000);
 	});
 
 	it("lock() read-back detects overwrite by concurrent writer", async () => {

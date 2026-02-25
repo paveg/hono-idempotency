@@ -38,7 +38,9 @@ export function redisStore(options: RedisStoreOptions): IdempotencyStore {
 			const record = JSON.parse(raw) as IdempotencyRecord;
 			record.status = "completed";
 			record.response = response;
-			await client.set(key, JSON.stringify(record), { EX: ttl });
+			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);
+			const remaining = Math.max(1, ttl - elapsed);
+			await client.set(key, JSON.stringify(record), { EX: remaining });
 		},
 
 		async delete(key) {
