@@ -1668,6 +1668,42 @@ describe("idempotency middleware", () => {
 		});
 	});
 
+	// Defensive: replayResponse with out-of-range stored status
+	it("replays response with out-of-range stored status without RangeError", async () => {
+		const store: Parameters<typeof idempotency>[0]["store"] = {
+			async get() {
+				return {
+					key: "test",
+					fingerprint: "fixed-fp",
+					status: "completed",
+					response: { status: 999, headers: {}, body: '{"ok":true}' },
+					createdAt: Date.now(),
+				};
+			},
+			async lock() {
+				return false;
+			},
+			async complete() {},
+			async delete() {},
+			async purge() {
+				return 0;
+			},
+		};
+
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store, fingerprint: () => "fixed-fp" }));
+		app.post("/api/text", (c) => c.text("ok"));
+
+		const res = await app.request("/api/text", {
+			method: "POST",
+			headers: { "Idempotency-Key": "status-test" },
+		});
+
+		// Should not throw RangeError; status 999 should be clamped to 500
+		expect(res.status).toBe(500);
+		expect(res.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
 	// Non-2xx response allows retry with same key (Stripe pattern E4 alternative)
 	it("E4 alternative: error response is not cached, same key retries succeed", async () => {
 		let callCount = 0;

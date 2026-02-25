@@ -13,12 +13,27 @@ export interface ProblemDetail {
 	code: IdempotencyErrorCode;
 }
 
+/** Ensures status is a valid HTTP status code (200-599), defaults to 500. */
+export function clampHttpStatus(status: number): number {
+	if (Number.isNaN(status) || status < 200 || status > 599) return 500;
+	return status;
+}
+
 export function problemResponse(
 	problem: ProblemDetail,
 	extraHeaders?: Record<string, string>,
 ): Response {
-	return new Response(JSON.stringify(problem), {
-		status: problem.status,
+	let body: string;
+	let status: number;
+	try {
+		body = JSON.stringify(problem);
+		status = clampHttpStatus(problem.status);
+	} catch {
+		body = '{"title":"Internal Server Error","status":500}';
+		status = 500;
+	}
+	return new Response(body, {
+		status,
 		headers: {
 			"Content-Type": "application/problem+json",
 			...extraHeaders,

@@ -168,6 +168,36 @@ describe("kvStore", () => {
 		expect(capturedOpts?.expirationTtl).toBe(3000);
 	});
 
+	it("lock() returns false when JSON.stringify throws", async () => {
+		const kv = createMockKV();
+		const store = kvStore({ namespace: kv as never });
+		const record = makeRecord("key-1");
+
+		vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+			throw new TypeError("BigInt serialization");
+		});
+
+		const result = await store.lock("key-1", record);
+		expect(result).toBe(false);
+		vi.restoreAllMocks();
+	});
+
+	it("complete() is a no-op when JSON.stringify throws", async () => {
+		const kv = createMockKV();
+		const store = kvStore({ namespace: kv as never });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+			throw new TypeError("BigInt serialization");
+		});
+
+		await store.complete("key-1", makeResponse());
+		vi.restoreAllMocks();
+
+		const saved = await store.get("key-1");
+		expect(saved?.status).toBe("processing");
+	});
+
 	it("lock() read-back detects overwrite by concurrent writer with different fingerprint", async () => {
 		const kv = createMockKV();
 		const originalPut = kv.put.bind(kv);

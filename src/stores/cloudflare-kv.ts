@@ -43,7 +43,13 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 			// Embed a unique lockId to distinguish concurrent writers with the same fingerprint
 			const lockId = crypto.randomUUID();
 			const withLock = { ...record, lockId };
-			await kv.put(key, JSON.stringify(withLock), { expirationTtl: ttl });
+			let serialized: string;
+			try {
+				serialized = JSON.stringify(withLock);
+			} catch {
+				return false;
+			}
+			await kv.put(key, serialized, { expirationTtl: ttl });
 
 			// Read-back verification using lockId (not fingerprint) for reliable race detection
 			const stored = (await kv.get(key, { type: "json" })) as
@@ -59,7 +65,13 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 			record.response = response;
 			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);
 			const remaining = Math.max(1, ttl - elapsed);
-			await kv.put(key, JSON.stringify(record), { expirationTtl: remaining });
+			let serialized: string;
+			try {
+				serialized = JSON.stringify(record);
+			} catch {
+				return;
+			}
+			await kv.put(key, serialized, { expirationTtl: remaining });
 		},
 
 		async delete(key) {

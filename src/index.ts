@@ -1,5 +1,5 @@
 export { idempotency } from "./middleware.js";
-export { IdempotencyErrors, problemResponse } from "./errors.js";
+export { IdempotencyErrors, clampHttpStatus, problemResponse } from "./errors.js";
 export type {
 	IdempotencyEnv,
 	IdempotencyOptions,

@@ -32,7 +32,13 @@ export function redisStore(options: RedisStoreOptions): IdempotencyStore {
 		},
 
 		async lock(key, record) {
-			const result = await client.set(key, JSON.stringify(record), { NX: true, EX: ttl });
+			let serialized: string;
+			try {
+				serialized = JSON.stringify(record);
+			} catch {
+				return false;
+			}
+			const result = await client.set(key, serialized, { NX: true, EX: ttl });
 			return result === "OK";
 		},
 
@@ -44,7 +50,13 @@ export function redisStore(options: RedisStoreOptions): IdempotencyStore {
 			record.response = response;
 			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);
 			const remaining = Math.max(1, ttl - elapsed);
-			await client.set(key, JSON.stringify(record), { EX: remaining });
+			let serialized: string;
+			try {
+				serialized = JSON.stringify(record);
+			} catch {
+				return;
+			}
+			await client.set(key, serialized, { EX: remaining });
 		},
 
 		async delete(key) {
