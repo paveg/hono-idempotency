@@ -27,19 +27,29 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 
 	return {
 		async get(key) {
-			const record = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
-			return record ?? undefined;
+			const raw = (await kv.get(key, { type: "json" })) as
+				| (IdempotencyRecord & { lockId?: string })
+				| null;
+			if (!raw) return undefined;
+			// Strip internal lockId before returning to consumers
+			const { lockId: _, ...record } = raw;
+			return record;
 		},
 
 		async lock(key, record) {
 			const existing = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
 			if (existing) return false;
 
-			await kv.put(key, JSON.stringify(record), { expirationTtl: ttl });
+			// Embed a unique lockId to distinguish concurrent writers with the same fingerprint
+			const lockId = crypto.randomUUID();
+			const withLock = { ...record, lockId };
+			await kv.put(key, JSON.stringify(withLock), { expirationTtl: ttl });
 
-			// Read-back verification: detect if a concurrent writer overwrote our record
-			const stored = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
-			return stored?.fingerprint === record.fingerprint;
+			// Read-back verification using lockId (not fingerprint) for reliable race detection
+			const stored = (await kv.get(key, { type: "json" })) as
+				| (IdempotencyRecord & { lockId?: string })
+				| null;
+			return stored?.lockId === lockId;
 		},
 
 		async complete(key, response) {

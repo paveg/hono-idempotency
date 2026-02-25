@@ -168,7 +168,7 @@ describe("kvStore", () => {
 		expect(capturedOpts?.expirationTtl).toBe(3000);
 	});
 
-	it("lock() read-back detects overwrite by concurrent writer", async () => {
+	it("lock() read-back detects overwrite by concurrent writer with different fingerprint", async () => {
 		const kv = createMockKV();
 		const originalPut = kv.put.bind(kv);
 		let putCount = 0;
@@ -177,14 +177,39 @@ describe("kvStore", () => {
 			await originalPut(key, value, opts);
 			putCount++;
 			if (putCount === 1) {
-				// Concurrent writer overwrites with different fingerprint
-				const hijacked = { ...JSON.parse(value), fingerprint: "hijacked" };
+				// Concurrent writer overwrites with different fingerprint and lockId
+				const hijacked = {
+					...JSON.parse(value),
+					fingerprint: "hijacked",
+					lockId: "concurrent-writer-id",
+				};
 				await originalPut(key, JSON.stringify(hijacked), opts);
 			}
 		};
 
 		const store = kvStore({ namespace: kv as never });
 		const result = await store.lock("key-1", makeRecord("key-1", "original-fp"));
+		expect(result).toBe(false);
+	});
+
+	it("lock() read-back detects overwrite by concurrent writer with same fingerprint", async () => {
+		const kv = createMockKV();
+		const originalPut = kv.put.bind(kv);
+		let putCount = 0;
+		// Simulate concurrent writer with same fingerprint but different lockId
+		kv.put = async (key: string, value: string, opts?: { expirationTtl?: number }) => {
+			await originalPut(key, value, opts);
+			putCount++;
+			if (putCount === 1) {
+				// Concurrent writer has same fingerprint but different lockId
+				const parsed = JSON.parse(value);
+				const hijacked = { ...parsed, lockId: "concurrent-writer-id" };
+				await originalPut(key, JSON.stringify(hijacked), opts);
+			}
+		};
+
+		const store = kvStore({ namespace: kv as never });
+		const result = await store.lock("key-1", makeRecord("key-1", "same-fp"));
 		expect(result).toBe(false);
 	});
 });
