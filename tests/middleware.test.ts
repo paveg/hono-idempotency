@@ -1314,6 +1314,32 @@ describe("idempotency middleware", () => {
 			const body = await res.json();
 			expect(body.detail).toContain("0");
 		});
+
+		it("rejects key whose UTF-8 byte length exceeds maxKeyLength", async () => {
+			// 129 × é (U+00E9): JS length 129, UTF-8 byte length 258 > 256
+			const { app } = createApp({ maxKeyLength: 256 });
+			const latinKey = "\u00E9".repeat(129);
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": latinKey },
+			});
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.code).toBe("KEY_TOO_LONG");
+		});
+
+		it("allows key within UTF-8 byte length limit", async () => {
+			// 128 × é (U+00E9): JS length 128, UTF-8 byte length 256 = 256
+			const { app } = createApp({ maxKeyLength: 256 });
+			const latinKey = "\u00E9".repeat(128);
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: { "Idempotency-Key": latinKey },
+			});
+			expect(res.status).toBe(200);
+		});
 	});
 
 	// Boundary: methods option

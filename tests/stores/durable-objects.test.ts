@@ -84,7 +84,7 @@ describe("durableObjectStore", () => {
 		expect(await store.get("nonexistent")).toBeUndefined();
 	});
 
-	it("get() returns undefined for expired record", async () => {
+	it("get() returns undefined for expired record and deletes it from storage", async () => {
 		const storage = createMockStorage();
 		const store = durableObjectStore({ storage, ttl: 60_000 });
 
@@ -92,6 +92,8 @@ describe("durableObjectStore", () => {
 		vi.advanceTimersByTime(60_000);
 
 		expect(await store.get("key-1")).toBeUndefined();
+		// Expired record should be deleted from underlying storage (lazy cleanup)
+		expect(storage.data.has("key-1")).toBe(false);
 	});
 
 	it("complete() updates status and attaches response", async () => {
