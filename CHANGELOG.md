@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.7.2
+
+### Patch Changes
+
+- [#86](https://github.com/paveg/hono-idempotency/pull/86) [`4a3492c`](https://github.com/paveg/hono-idempotency/commit/4a3492c310f7bd0d609b97ab1560c5fcd858bb81) Thanks [@paveg](https://github.com/paveg)! - Add KV Store lock race detection, fix invalid test status, export IdempotencyErrors and store option types
+
 ## 0.7.1
 
 ### Patch Changes
