@@ -1,4 +1,9 @@
-import type { IdempotencyRecord, StoredResponse } from "../types.js";
+import {
+	type IdempotencyRecord,
+	RECORD_STATUS_COMPLETED,
+	type RECORD_STATUS_PROCESSING,
+	type StoredResponse,
+} from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TABLE = "idempotency_keys";
@@ -54,13 +59,23 @@ export function d1Store(options: D1StoreOptions): IdempotencyStore {
 		return Date.now() - ttl * 1000;
 	};
 
-	const toRecord = (row: Record<string, unknown>): IdempotencyRecord => ({
-		key: row.key as string,
-		fingerprint: row.fingerprint as string,
-		status: row.status as "processing" | "completed",
-		response: row.response ? (JSON.parse(row.response as string) as StoredResponse) : undefined,
-		createdAt: row.created_at as number,
-	});
+	const toRecord = (row: Record<string, unknown>): IdempotencyRecord => {
+		let response: StoredResponse | undefined;
+		if (row.response) {
+			try {
+				response = JSON.parse(row.response as string) as StoredResponse;
+			} catch {
+				// Corrupt JSON in storage — degrade gracefully like other stores
+			}
+		}
+		return {
+			key: row.key as string,
+			fingerprint: row.fingerprint as string,
+			status: row.status as typeof RECORD_STATUS_PROCESSING | typeof RECORD_STATUS_COMPLETED,
+			response,
+			createdAt: row.created_at as number,
+		};
+	};
 
 	return {
 		async get(key) {
@@ -96,7 +111,7 @@ export function d1Store(options: D1StoreOptions): IdempotencyStore {
 			}
 			await db
 				.prepare(`UPDATE ${tableName} SET status = ?, response = ? WHERE key = ?`)
-				.bind("completed", serialized, key)
+				.bind(RECORD_STATUS_COMPLETED, serialized, key)
 				.run();
 		},
 

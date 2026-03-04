@@ -275,6 +275,54 @@ describe("d1Store", () => {
 		);
 	});
 
+	it("get() returns record with response: undefined on corrupt JSON in response column", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never });
+
+		await store.lock("key-1", makeRecord("key-1"));
+		// Simulate corrupt JSON stored in the response column
+		const row = db.rows.get("key-1") as Record<string, unknown>;
+		row.status = "completed";
+		row.response = "not-valid-json{{{";
+
+		const saved = await store.get("key-1");
+		expect(saved).toBeDefined();
+		expect(saved?.status).toBe("completed");
+		expect(saved?.response).toBeUndefined();
+	});
+
+	it("get() still returns record at exact TTL boundary (created_at >= threshold)", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never, ttl: 1 }); // 1 second
+
+		await store.lock("key-1", makeRecord("key-1"));
+
+		// Advance exactly 1000ms = 1s TTL → created_at equals threshold → still valid
+		vi.advanceTimersByTime(1000);
+		expect(await store.get("key-1")).toBeDefined();
+
+		// 1ms later → created_at < threshold → expired
+		vi.advanceTimersByTime(1);
+		expect(await store.get("key-1")).toBeUndefined();
+	});
+
+	it("delete() on non-existent key is a no-op", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never });
+
+		// Should not throw
+		await store.delete("nonexistent");
+		expect(await store.get("nonexistent")).toBeUndefined();
+	});
+
+	it("purge() on empty store returns 0", async () => {
+		const db = createMockD1();
+		const store = d1Store({ database: db as never });
+
+		const purged = await store.purge();
+		expect(purged).toBe(0);
+	});
+
 	it("accepts valid table names", () => {
 		const db = createMockD1();
 		expect(() => d1Store({ database: db as never, tableName: "my_keys" })).not.toThrow();

@@ -35,12 +35,13 @@ export function problemResponse(
 	return new Response(body, {
 		status,
 		headers: {
-			"Content-Type": "application/problem+json",
+			"Content-Type": PROBLEM_CONTENT_TYPE,
 			...extraHeaders,
 		},
 	});
 }
 
+const PROBLEM_CONTENT_TYPE = "application/problem+json";
 const BASE_URL = "https://hono-idempotency.dev/errors";
 
 export const IdempotencyErrors = {

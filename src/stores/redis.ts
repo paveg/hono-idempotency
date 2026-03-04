@@ -1,4 +1,4 @@
-import type { IdempotencyRecord, StoredResponse } from "../types.js";
+import { type IdempotencyRecord, RECORD_STATUS_COMPLETED, type StoredResponse } from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TTL = 86400; // 24 hours in seconds
@@ -45,8 +45,13 @@ export function redisStore(options: RedisStoreOptions): IdempotencyStore {
 		async complete(key, response) {
 			const raw = await client.get(key);
 			if (!raw) return;
-			const record = JSON.parse(raw) as IdempotencyRecord;
-			record.status = "completed";
+			let record: IdempotencyRecord;
+			try {
+				record = JSON.parse(raw) as IdempotencyRecord;
+			} catch {
+				return;
+			}
+			record.status = RECORD_STATUS_COMPLETED;
 			record.response = response;
 			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);
 			const remaining = Math.max(1, ttl - elapsed);

@@ -253,6 +253,49 @@ describe("redisStore", () => {
 		expect(saved?.status).toBe("processing");
 	});
 
+	it("complete() clamps remaining TTL to 1 when nearly expired", async () => {
+		const client = createMockRedis();
+		let capturedOpts: { NX?: boolean; EX?: number } | undefined;
+		const originalSet = client.set.bind(client);
+		client.set = async (key: string, value: string, opts?: { NX?: boolean; EX?: number }) => {
+			capturedOpts = opts;
+			return originalSet(key, value, opts);
+		};
+
+		const store = redisStore({ client, ttl: 60 });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		// Advance 59 seconds → remaining = max(1, 60 - 59) = 1
+		vi.advanceTimersByTime(59 * 1000);
+		await store.complete("key-1", makeResponse());
+
+		expect(capturedOpts?.EX).toBe(1);
+	});
+
+	it("delete() on non-existent key is a no-op", async () => {
+		const client = createMockRedis();
+		const store = redisStore({ client });
+
+		// Should not throw
+		await store.delete("nonexistent");
+		expect(await store.get("nonexistent")).toBeUndefined();
+	});
+
+	it("complete() is a no-op when stored record is corrupt JSON", async () => {
+		const client = createMockRedis();
+		const store = redisStore({ client });
+
+		// Manually inject corrupt data into Redis
+		client.data.set("corrupt-key", { value: "not-valid-json{{{", expireAt: undefined });
+
+		// Should not throw — degrade gracefully
+		await store.complete("corrupt-key", makeResponse());
+
+		// Record should remain unchanged (corrupt)
+		const raw = client.data.get("corrupt-key");
+		expect(raw?.value).toBe("not-valid-json{{{");
+	});
+
 	it("complete() uses remaining TTL from creation, not full TTL", async () => {
 		const client = createMockRedis();
 		let capturedOpts: { NX?: boolean; EX?: number } | undefined;

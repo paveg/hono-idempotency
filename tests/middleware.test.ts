@@ -1648,6 +1648,41 @@ describe("idempotency middleware", () => {
 			expect(res.status).toBe(200);
 		});
 
+		it("maxBodySize: 0 with empty body passes (0 is NOT > 0)", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 0 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-empty-body",
+					"Content-Length": "0",
+				},
+			});
+			expect(res.status).toBe(200);
+		});
+
+		it("maxBodySize: 0 rejects any non-empty body", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 0 }));
+			app.post("/api/text", (c) => c.text("ok"));
+
+			const res = await app.request("/api/text", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-one-byte",
+					"Content-Length": "1",
+				},
+				body: "x",
+			});
+			expect(res.status).toBe(413);
+			const body = await res.json();
+			expect(body.code).toBe("BODY_TOO_LARGE");
+		});
+
 		it("rejects request when Content-Length is negative", async () => {
 			const store = memoryStore();
 			const app = new Hono();

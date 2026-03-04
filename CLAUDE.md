@@ -6,7 +6,7 @@ Stripe-style Idempotency-Key middleware for Hono (v0.8.0). IETF draft-ietf-httpa
 
 ## Commands
 
-- `pnpm test` — Run tests (vitest, 180 tests across 9 files)
+- `pnpm test` — Run tests (vitest, 194 tests across 9 files)
 - `pnpm build` — Build ESM + CJS (tsup)
 - `pnpm lint` — Check linting (biome)
 - `pnpm lint:fix` — Auto-fix lint issues

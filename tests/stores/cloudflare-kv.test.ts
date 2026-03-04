@@ -198,6 +198,52 @@ describe("kvStore", () => {
 		expect(saved?.status).toBe("processing");
 	});
 
+	it("get() does not include lockId after complete()", async () => {
+		const kv = createMockKV();
+		const store = kvStore({ namespace: kv as never });
+
+		await store.lock("key-1", makeRecord("key-1"));
+		await store.complete("key-1", makeResponse());
+
+		const saved = await store.get("key-1");
+		expect(saved).toBeDefined();
+		expect(saved?.status).toBe("completed");
+		// lockId should be stripped by both get() and complete()
+		expect("lockId" in (saved as object)).toBe(false);
+
+		// Also verify the raw stored value has no lockId after complete()
+		const raw = JSON.parse(kv.data.get("key-1") as string);
+		expect(raw.lockId).toBeUndefined();
+	});
+
+	it("complete() TTL exact boundary (elapsed equals TTL → remaining clamped to 1)", async () => {
+		const kv = createMockKV();
+		let capturedOpts: { expirationTtl?: number } | undefined;
+		const originalPut = kv.put.bind(kv);
+		kv.put = async (key: string, value: string, opts?: { expirationTtl?: number }) => {
+			capturedOpts = opts;
+			return originalPut(key, value, opts);
+		};
+
+		const store = kvStore({ namespace: kv as never, ttl: 60 });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		// Advance exactly TTL seconds → remaining = max(1, 60 - 60) = 1
+		vi.advanceTimersByTime(60 * 1000);
+		await store.complete("key-1", makeResponse());
+
+		expect(capturedOpts?.expirationTtl).toBe(1);
+	});
+
+	it("delete() on non-existent key is a no-op", async () => {
+		const kv = createMockKV();
+		const store = kvStore({ namespace: kv as never });
+
+		// Should not throw
+		await store.delete("nonexistent");
+		expect(await store.get("nonexistent")).toBeUndefined();
+	});
+
 	it("lock() read-back detects overwrite by concurrent writer with different fingerprint", async () => {
 		const kv = createMockKV();
 		const originalPut = kv.put.bind(kv);

@@ -179,6 +179,23 @@ describe("durableObjectStore", () => {
 		expect(await store.get("key-1")).toBeUndefined();
 	});
 
+	it("delete() on non-existent key is a no-op", async () => {
+		const storage = createMockStorage();
+		const store = durableObjectStore({ storage });
+
+		// Should not throw
+		await store.delete("nonexistent");
+		expect(await store.get("nonexistent")).toBeUndefined();
+	});
+
+	it("purge() on empty store returns 0", async () => {
+		const storage = createMockStorage();
+		const store = durableObjectStore({ storage });
+
+		const purged = await store.purge();
+		expect(purged).toBe(0);
+	});
+
 	it("supports custom TTL", async () => {
 		const storage = createMockStorage();
 		const store = durableObjectStore({ storage, ttl: 5_000 });

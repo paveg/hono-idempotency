@@ -1,4 +1,4 @@
-import type { IdempotencyRecord, StoredResponse } from "../types.js";
+import { type IdempotencyRecord, RECORD_STATUS_COMPLETED, type StoredResponse } from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TTL = 86400; // 24 hours in seconds
@@ -59,9 +59,12 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 		},
 
 		async complete(key, response) {
-			const record = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
-			if (!record) return;
-			record.status = "completed";
+			const raw = (await kv.get(key, { type: "json" })) as
+				| (IdempotencyRecord & { lockId?: string })
+				| null;
+			if (!raw) return;
+			const { lockId: _, ...record } = raw;
+			record.status = RECORD_STATUS_COMPLETED;
 			record.response = response;
 			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);
 			const remaining = Math.max(1, ttl - elapsed);
