@@ -53,6 +53,24 @@ Keep commit messages concise and descriptive. Use [Changesets](https://github.co
 pnpm changeset
 ```
 
+## Release Flow
+
+```
+push to main
+└─ release.yml triggered
+   └─ changesets/action decides
+      │
+      ├─ .changeset/*.md exists
+      │  → Creates/updates a "Version Packages" PR
+      │    └─ ci-pass status auto-applied → ready to merge
+      │
+      └─ No .changeset/*.md (right after merging Version Packages PR)
+         → npm publish + GitHub Release created automatically
+```
+
+Contributors only need to **add a changeset and submit a PR**.
+Versioning and publishing are fully automated after merge.
+
 ## Reporting Issues
 
 Use [GitHub Issues](https://github.com/paveg/hono-idempotency/issues). For security vulnerabilities, see [SECURITY.md](./SECURITY.md).
