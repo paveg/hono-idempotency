@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.8.1
+
+### Patch Changes
+
+- Guard JSON.parse in store complete/get methods and extract hardcoded string literals as named constants
+
 ## 0.8.0
 
 ### Minor Changes
