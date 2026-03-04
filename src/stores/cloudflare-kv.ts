@@ -59,8 +59,11 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 		},
 
 		async complete(key, response) {
-			const record = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
-			if (!record) return;
+			const raw = (await kv.get(key, { type: "json" })) as
+				| (IdempotencyRecord & { lockId?: string })
+				| null;
+			if (!raw) return;
+			const { lockId: _, ...record } = raw;
 			record.status = "completed";
 			record.response = response;
 			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);

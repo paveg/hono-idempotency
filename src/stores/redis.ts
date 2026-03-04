@@ -45,7 +45,12 @@ export function redisStore(options: RedisStoreOptions): IdempotencyStore {
 		async complete(key, response) {
 			const raw = await client.get(key);
 			if (!raw) return;
-			const record = JSON.parse(raw) as IdempotencyRecord;
+			let record: IdempotencyRecord;
+			try {
+				record = JSON.parse(raw) as IdempotencyRecord;
+			} catch {
+				return;
+			}
 			record.status = "completed";
 			record.response = response;
 			const elapsed = Math.floor((Date.now() - record.createdAt) / 1000);

@@ -54,13 +54,23 @@ export function d1Store(options: D1StoreOptions): IdempotencyStore {
 		return Date.now() - ttl * 1000;
 	};
 
-	const toRecord = (row: Record<string, unknown>): IdempotencyRecord => ({
-		key: row.key as string,
-		fingerprint: row.fingerprint as string,
-		status: row.status as "processing" | "completed",
-		response: row.response ? (JSON.parse(row.response as string) as StoredResponse) : undefined,
-		createdAt: row.created_at as number,
-	});
+	const toRecord = (row: Record<string, unknown>): IdempotencyRecord => {
+		let response: StoredResponse | undefined;
+		if (row.response) {
+			try {
+				response = JSON.parse(row.response as string) as StoredResponse;
+			} catch {
+				// Corrupt JSON in storage — degrade gracefully like other stores
+			}
+		}
+		return {
+			key: row.key as string,
+			fingerprint: row.fingerprint as string,
+			status: row.status as "processing" | "completed",
+			response,
+			createdAt: row.created_at as number,
+		};
+	};
 
 	return {
 		async get(key) {

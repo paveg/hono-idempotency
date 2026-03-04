@@ -13,6 +13,7 @@ const DEFAULT_METHODS = ["POST", "PATCH"];
 const DEFAULT_MAX_KEY_LENGTH = 256;
 // Headers unsafe to replay — session cookies could leak across users
 const EXCLUDED_STORE_HEADERS = new Set(["set-cookie"]);
+const encoder = new TextEncoder();
 
 export function idempotency(options: IdempotencyOptions) {
 	const {
@@ -71,7 +72,7 @@ export function idempotency(options: IdempotencyOptions) {
 			return next();
 		}
 
-		if (new TextEncoder().encode(key).length > maxKeyLength) {
+		if (encoder.encode(key).length > maxKeyLength) {
 			return errorResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
 		}
 
@@ -88,7 +89,7 @@ export function idempotency(options: IdempotencyOptions) {
 		const body = await c.req.text();
 
 		if (maxBodySize != null) {
-			const byteLength = new TextEncoder().encode(body).length;
+			const byteLength = encoder.encode(body).length;
 			if (byteLength > maxBodySize) {
 				return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
 			}
