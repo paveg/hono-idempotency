@@ -1,4 +1,9 @@
-import type { IdempotencyRecord, StoredResponse } from "../types.js";
+import {
+	type IdempotencyRecord,
+	RECORD_STATUS_COMPLETED,
+	RECORD_STATUS_PROCESSING,
+	type StoredResponse,
+} from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -57,7 +62,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 				while (map.size > maxSize) {
 					let evicted = false;
 					for (const [k, r] of map) {
-						if (r.status !== "processing") {
+						if (r.status !== RECORD_STATUS_PROCESSING) {
 							map.delete(k);
 							evicted = true;
 							break;
@@ -72,7 +77,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 		async complete(key, response) {
 			const record = map.get(key);
 			if (record) {
-				record.status = "completed";
+				record.status = RECORD_STATUS_COMPLETED;
 				record.response = response;
 			}
 		},

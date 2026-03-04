@@ -7,12 +7,19 @@ import {
 	problemResponse,
 } from "./errors.js";
 import { generateFingerprint } from "./fingerprint.js";
-import type { IdempotencyEnv, IdempotencyOptions, StoredResponse } from "./types.js";
+import {
+	type IdempotencyEnv,
+	type IdempotencyOptions,
+	RECORD_STATUS_PROCESSING,
+	type StoredResponse,
+} from "./types.js";
 
 const DEFAULT_METHODS = ["POST", "PATCH"];
 const DEFAULT_MAX_KEY_LENGTH = 256;
 // Headers unsafe to replay — session cookies could leak across users
 const EXCLUDED_STORE_HEADERS = new Set(["set-cookie"]);
+const DEFAULT_RETRY_AFTER = "1";
+const REPLAY_HEADER = "Idempotency-Replayed";
 const encoder = new TextEncoder();
 
 export function idempotency(options: IdempotencyOptions) {
@@ -108,8 +115,8 @@ export function idempotency(options: IdempotencyOptions) {
 		const existing = await store.get(storeKey);
 
 		if (existing) {
-			if (existing.status === "processing") {
-				return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
+			if (existing.status === RECORD_STATUS_PROCESSING) {
+				return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": DEFAULT_RETRY_AFTER });
 			}
 
 			if (existing.fingerprint !== fp) {
@@ -128,13 +135,13 @@ export function idempotency(options: IdempotencyOptions) {
 		const record = {
 			key,
 			fingerprint: fp,
-			status: "processing" as const,
+			status: RECORD_STATUS_PROCESSING,
 			createdAt: Date.now(),
 		};
 
 		const locked = await store.lock(storeKey, record);
 		if (!locked) {
-			return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": "1" });
+			return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": DEFAULT_RETRY_AFTER });
 		}
 
 		c.set("idempotencyKey", key);
@@ -194,7 +201,7 @@ async function safeHook<C>(
 
 function replayResponse(stored: StoredResponse) {
 	const headers = new Headers(stored.headers);
-	headers.set("Idempotency-Replayed", "true");
+	headers.set(REPLAY_HEADER, "true");
 
 	return new Response(stored.body, {
 		status: clampHttpStatus(stored.status),

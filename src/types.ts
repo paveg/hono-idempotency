@@ -2,6 +2,9 @@ import type { Context, Env } from "hono";
 import type { ProblemDetail } from "./errors.js";
 import type { IdempotencyStore } from "./stores/types.js";
 
+export const RECORD_STATUS_PROCESSING = "processing" as const;
+export const RECORD_STATUS_COMPLETED = "completed" as const;
+
 export interface IdempotencyEnv extends Env {
 	Variables: {
 		idempotencyKey: string | undefined;

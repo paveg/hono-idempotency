@@ -209,7 +209,6 @@ describe("kvStore", () => {
 		expect(saved).toBeDefined();
 		expect(saved?.status).toBe("completed");
 		// lockId should be stripped by both get() and complete()
-		expect(saved).toBeDefined();
 		expect("lockId" in (saved as object)).toBe(false);
 
 		// Also verify the raw stored value has no lockId after complete()

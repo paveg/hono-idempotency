@@ -1,4 +1,4 @@
-import type { IdempotencyRecord, StoredResponse } from "../types.js";
+import { type IdempotencyRecord, RECORD_STATUS_COMPLETED, type StoredResponse } from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours in ms
@@ -48,7 +48,7 @@ export function durableObjectStore(options: DurableObjectStoreOptions): Idempote
 		async complete(key, response) {
 			const record = await storage.get<IdempotencyRecord>(key);
 			if (!record) return;
-			record.status = "completed";
+			record.status = RECORD_STATUS_COMPLETED;
 			record.response = response;
 			await storage.put(key, record);
 		},
