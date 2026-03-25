@@ -69,6 +69,15 @@
 		}
 	},
 	"sideEffects": false,
+	"typesVersions": {
+		"*": {
+			"stores/memory": ["./dist/stores/memory.d.ts"],
+			"stores/cloudflare-kv": ["./dist/stores/cloudflare-kv.d.ts"],
+			"stores/cloudflare-d1": ["./dist/stores/cloudflare-d1.d.ts"],
+			"stores/redis": ["./dist/stores/redis.d.ts"],
+			"stores/durable-objects": ["./dist/stores/durable-objects.d.ts"]
+		}
+	},
 	"files": ["dist"],
 	"scripts": {
 		"build": "tsup",
