@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.8.2
+
+### Patch Changes
+
+- [#114](https://github.com/paveg/hono-idempotency/pull/114) [`1b23988`](https://github.com/paveg/hono-idempotency/commit/1b23988147465fa6ec8b0291729876f013b25816) Thanks [@paveg](https://github.com/paveg)! - fix: add typesVersions for moduleResolution "node" compatibility
+
 ## 0.8.1
 
 ### Patch Changes
