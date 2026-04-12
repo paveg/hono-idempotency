@@ -6,7 +6,7 @@ import {
 	clampHttpStatus,
 	problemResponse,
 } from "./errors.js";
-import { generateFingerprint } from "./fingerprint.js";
+import { generateFingerprint, timingSafeEqual } from "./fingerprint.js";
 import {
 	type IdempotencyEnv,
 	type IdempotencyOptions,
@@ -17,7 +17,7 @@ import {
 const DEFAULT_METHODS = ["POST", "PATCH"];
 const DEFAULT_MAX_KEY_LENGTH = 256;
 // Headers unsafe to replay — session cookies could leak across users
-const EXCLUDED_STORE_HEADERS = new Set(["set-cookie"]);
+const EXCLUDED_STORE_HEADERS = new Set(["set-cookie", "content-length", "transfer-encoding"]);
 const DEFAULT_RETRY_AFTER = "1";
 const REPLAY_HEADER = "Idempotency-Replayed";
 const encoder = new TextEncoder();
@@ -83,6 +83,7 @@ export function idempotency(options: IdempotencyOptions) {
 			return errorResponse(IdempotencyErrors.keyTooLong(maxKeyLength));
 		}
 
+		// Pre-check Content-Length before reading body
 		if (maxBodySize != null) {
 			const cl = c.req.header("Content-Length");
 			if (cl) {
@@ -92,18 +93,6 @@ export function idempotency(options: IdempotencyOptions) {
 				}
 			}
 		}
-
-		const body = await c.req.text();
-
-		if (maxBodySize != null) {
-			const byteLength = encoder.encode(body).length;
-			if (byteLength > maxBodySize) {
-				return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
-			}
-		}
-		const fp = customFingerprint
-			? await customFingerprint(c)
-			: await generateFingerprint(c.req.method, c.req.path, body);
 
 		const rawPrefix =
 			typeof cacheKeyPrefix === "function" ? await cacheKeyPrefix(c) : cacheKeyPrefix;
@@ -116,10 +105,25 @@ export function idempotency(options: IdempotencyOptions) {
 
 		if (existing) {
 			if (existing.status === RECORD_STATUS_PROCESSING) {
-				return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": DEFAULT_RETRY_AFTER });
+				return errorResponse(IdempotencyErrors.conflict(), {
+					"Retry-After": DEFAULT_RETRY_AFTER,
+				});
 			}
 
-			if (existing.fingerprint !== fp) {
+			const body = await c.req.text();
+
+			if (maxBodySize != null) {
+				const byteLength = encoder.encode(body).length;
+				if (byteLength > maxBodySize) {
+					return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
+				}
+			}
+
+			const fp = customFingerprint
+				? await customFingerprint(c)
+				: await generateFingerprint(c.req.method, c.req.path, body);
+
+			if (!timingSafeEqual(existing.fingerprint, fp)) {
 				return errorResponse(IdempotencyErrors.fingerprintMismatch());
 			}
 
@@ -132,6 +136,19 @@ export function idempotency(options: IdempotencyOptions) {
 			await store.delete(storeKey);
 		}
 
+		const body = await c.req.text();
+
+		if (maxBodySize != null) {
+			const byteLength = encoder.encode(body).length;
+			if (byteLength > maxBodySize) {
+				return errorResponse(IdempotencyErrors.bodyTooLarge(maxBodySize));
+			}
+		}
+
+		const fp = customFingerprint
+			? await customFingerprint(c)
+			: await generateFingerprint(c.req.method, c.req.path, body);
+
 		const record = {
 			key,
 			fingerprint: fp,
@@ -141,7 +158,9 @@ export function idempotency(options: IdempotencyOptions) {
 
 		const locked = await store.lock(storeKey, record);
 		if (!locked) {
-			return errorResponse(IdempotencyErrors.conflict(), { "Retry-After": DEFAULT_RETRY_AFTER });
+			return errorResponse(IdempotencyErrors.conflict(), {
+				"Retry-After": DEFAULT_RETRY_AFTER,
+			});
 		}
 
 		c.set("idempotencyKey", key);

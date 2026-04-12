@@ -6,7 +6,7 @@ describe("problemResponse", () => {
 		const problem = IdempotencyErrors.conflict();
 		const res = problemResponse(problem);
 		expect(res.status).toBe(409);
-		expect(res.headers.get("Content-Type")).toBe("application/problem+json");
+		expect(res.headers.get("Content-Type")).toBe("application/problem+json; charset=utf-8");
 	});
 
 	it("returns fallback 500 response when JSON.stringify throws", () => {
@@ -34,6 +34,12 @@ describe("problemResponse", () => {
 
 	it("returns 500 for NaN status", () => {
 		const problem = { ...IdempotencyErrors.conflict(), status: Number.NaN };
+		const res = problemResponse(problem);
+		expect(res.status).toBe(500);
+	});
+
+	it("returns 500 for non-integer status (e.g. 200.5)", () => {
+		const problem = { ...IdempotencyErrors.conflict(), status: 200.5 };
 		const res = problemResponse(problem);
 		expect(res.status).toBe(500);
 	});

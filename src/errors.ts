@@ -13,10 +13,9 @@ export interface ProblemDetail {
 	code: IdempotencyErrorCode;
 }
 
-/** Ensures status is a valid HTTP status code (200-599), defaults to 500. */
+/** Clamp HTTP status to 200-599 integer range; returns 500 for out-of-range or non-integer values. */
 export function clampHttpStatus(status: number): number {
-	if (Number.isNaN(status) || status < 200 || status > 599) return 500;
-	return status;
+	return Number.isInteger(status) && status >= 200 && status <= 599 ? status : 500;
 }
 
 export function problemResponse(
@@ -41,7 +40,7 @@ export function problemResponse(
 	});
 }
 
-const PROBLEM_CONTENT_TYPE = "application/problem+json";
+const PROBLEM_CONTENT_TYPE = "application/problem+json; charset=utf-8";
 const BASE_URL = "https://hono-idempotency.dev/errors";
 
 export const IdempotencyErrors = {

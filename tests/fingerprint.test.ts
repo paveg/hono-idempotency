@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateFingerprint } from "../src/fingerprint.js";
+import { generateFingerprint, timingSafeEqual } from "../src/fingerprint.js";
 
 describe("generateFingerprint", () => {
 	it("produces the same hash for identical inputs", async () => {
@@ -59,5 +59,34 @@ describe("generateFingerprint", () => {
 	it("returns a hex-encoded SHA-256 hash (64 chars)", async () => {
 		const hash = await generateFingerprint("POST", "/api/orders", "body");
 		expect(hash).toMatch(/^[a-f0-9]{64}$/);
+	});
+});
+
+describe("timingSafeEqual", () => {
+	it("returns true for identical strings", () => {
+		expect(timingSafeEqual("abc", "abc")).toBe(true);
+	});
+
+	it("returns false for different strings of same length", () => {
+		expect(timingSafeEqual("abc", "abd")).toBe(false);
+	});
+
+	it("returns false for different lengths", () => {
+		expect(timingSafeEqual("abc", "abcd")).toBe(false);
+	});
+
+	it("returns true for empty strings", () => {
+		expect(timingSafeEqual("", "")).toBe(true);
+	});
+
+	it("returns false for empty vs non-empty", () => {
+		expect(timingSafeEqual("", "a")).toBe(false);
+	});
+
+	it("handles SHA-256 hex strings (64 chars)", () => {
+		const hash = "a".repeat(64);
+		expect(timingSafeEqual(hash, hash)).toBe(true);
+		expect(timingSafeEqual(hash, `b${hash.slice(1)}`)).toBe(false);
+		expect(timingSafeEqual(hash, `${hash.slice(0, 63)}b`)).toBe(false);
 	});
 });
