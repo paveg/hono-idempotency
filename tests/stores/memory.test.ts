@@ -99,7 +99,7 @@ describe("memoryStore", () => {
 
 	// GC: expired entries are removed from the Map, not just hidden by get()
 	it("sweeps expired entries from internal Map on lock()", async () => {
-		const store = memoryStore({ ttl: 1000 });
+		const store = memoryStore({ ttl: 1000, sweepInterval: 0 });
 
 		await store.lock("old-1", makeRecord("old-1"));
 		await store.lock("old-2", makeRecord("old-2"));
@@ -289,7 +289,7 @@ describe("memoryStore", () => {
 
 	// Boundary: maxSize eviction with sweep interaction
 	it("maxSize eviction after sweep removes only excess entries", async () => {
-		const store = memoryStore({ ttl: 1000, maxSize: 2 });
+		const store = memoryStore({ ttl: 1000, maxSize: 2, sweepInterval: 0 });
 
 		await store.lock("a", makeRecord("a"));
 		await store.lock("b", makeRecord("b"));
@@ -302,6 +302,47 @@ describe("memoryStore", () => {
 		await store.lock("c", makeRecord("c"));
 		expect(store.size).toBe(1);
 		expect(await store.get("c")).toBeDefined();
+	});
+
+	it("sweep runs at most once per sweepInterval", async () => {
+		// sweepInterval=5000, ttl=1000
+		const store = memoryStore({ ttl: 1000, sweepInterval: 5000 });
+
+		// t=0: lock "a" — first sweepIfDue runs (no-op, map empty), lastSweep=0
+		await store.lock("a", makeRecord("a"));
+		vi.advanceTimersByTime(1001); // t=1001: "a" expires
+
+		// t=1001: lock "b" — within sweepInterval (1001-0=1001 < 5000), no sweep
+		await store.lock("b", makeRecord("b"));
+		expect(store.size).toBe(2); // "a" expired but unswept, "b" added
+
+		vi.advanceTimersByTime(4000); // t=5001: past sweepInterval (5001-0=5001 >= 5000)
+
+		// t=5001: lock "c" — sweep triggers, clears expired "a" and "b"
+		await store.lock("c", makeRecord("c"));
+		expect(store.size).toBe(1); // only "c" (a, b swept)
+	});
+
+	it("no-op sweep still starts cooldown to avoid repeated O(N) scans", async () => {
+		const store = memoryStore({ ttl: 5000, sweepInterval: 3000 });
+
+		// t=0: lock "a"
+		await store.lock("a", makeRecord("a"));
+
+		// t=3001: first sweep fires (no-op — "a" not expired), cooldown starts
+		vi.advanceTimersByTime(3001);
+		await store.lock("b", makeRecord("b"));
+		expect(store.size).toBe(2); // a (alive), b
+
+		// t=5001: "a" expires (5001 >= ttl=5000), but within cooldown (5001-3001=2000 < 3000)
+		vi.advanceTimersByTime(2000);
+		await store.lock("c", makeRecord("c"));
+		expect(store.size).toBe(3); // a (expired, unswept), b, c
+
+		// t=6002: past cooldown (6002-3001=3001 >= 3000), sweep runs and cleans "a"
+		vi.advanceTimersByTime(1001);
+		await store.lock("d", makeRecord("d"));
+		expect(store.size).toBe(3); // a swept, b, c, d
 	});
 
 	it("uses default TTL of 24 hours", async () => {

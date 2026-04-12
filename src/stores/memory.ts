@@ -12,6 +12,8 @@ export interface MemoryStoreOptions {
 	ttl?: number;
 	/** Maximum number of entries. Oldest entries are evicted when exceeded. */
 	maxSize?: number;
+	/** Minimum interval between sweeps in milliseconds (default: 60000). */
+	sweepInterval?: number;
 }
 
 export interface MemoryStore extends IdempotencyStore {
@@ -22,13 +24,18 @@ export interface MemoryStore extends IdempotencyStore {
 export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 	const ttl = options.ttl ?? DEFAULT_TTL;
 	const maxSize = options.maxSize;
+	const sweepInterval = options.sweepInterval ?? 60_000;
 	const map = new Map<string, IdempotencyRecord>();
+	let lastSweep = Number.NEGATIVE_INFINITY;
 
 	const isExpired = (record: IdempotencyRecord): boolean => {
 		return Date.now() - record.createdAt >= ttl;
 	};
 
-	const sweep = (): void => {
+	const sweepIfDue = (): void => {
+		const now = Date.now();
+		if (now - lastSweep < sweepInterval) return;
+		lastSweep = now;
 		for (const [key, record] of map) {
 			if (isExpired(record)) {
 				map.delete(key);
@@ -52,7 +59,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 		},
 
 		async lock(key, record) {
-			sweep();
+			sweepIfDue();
 			const existing = map.get(key);
 			if (existing && !isExpired(existing)) {
 				return false;
