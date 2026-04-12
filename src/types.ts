@@ -32,7 +32,12 @@ export interface IdempotencyOptions {
 	required?: boolean;
 	methods?: string[];
 	maxKeyLength?: number;
-	/** Maximum request body size in bytes. Pre-checked via Content-Length header, then enforced against actual body byte length. */
+	/**
+	 * Maximum request body size in bytes. Pre-checked via Content-Length header,
+	 * then enforced against actual body byte length.
+	 * Only applies when an Idempotency-Key header is present.
+	 * Requests without the key bypass this check regardless of this setting.
+	 */
 	maxBodySize?: number;
 	/** Should be a lightweight, side-effect-free predicate. Avoid reading the request body. */
 	skipRequest?: (c: Context) => boolean | Promise<boolean>;

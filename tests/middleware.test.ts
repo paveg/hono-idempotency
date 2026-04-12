@@ -156,6 +156,30 @@ describe("idempotency middleware", () => {
 		expect(statuses).toEqual([200, 409]);
 	});
 
+	// Existing record in processing state → 409 via store.get() path (not lock failure)
+	it("returns 409 when store.get() finds a processing record", async () => {
+		const store = memoryStore();
+		const app = new Hono();
+		app.use("/api/*", idempotency({ store }));
+		app.post("/api/data", (c) => c.text("ok"));
+
+		// Manually insert a processing record into the store
+		const storeKey = `POST:/api/data:${encodeURIComponent("key-processing")}`;
+		await store.lock(storeKey, {
+			key: "key-processing",
+			fingerprint: "some-fp",
+			status: "processing",
+			createdAt: Date.now(),
+		});
+
+		const res = await app.request("/api/data", {
+			method: "POST",
+			headers: { "Idempotency-Key": "key-processing" },
+		});
+		expect(res.status).toBe(409);
+		expect(res.headers.get("Retry-After")).toBe("1");
+	});
+
 	// E8: same key + different body → 422
 	it("E8: returns 422 when same key is used with different body", async () => {
 		const { app } = createApp();
@@ -458,6 +482,33 @@ describe("idempotency middleware", () => {
 		});
 		expect(res2.headers.get("Content-Type")).toBe(originalCT);
 		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+	});
+
+	it("excludes content-length and transfer-encoding from stored headers", async () => {
+		const store = memoryStore();
+		const { app } = createApp({ store });
+		const key = "key-excluded-headers";
+
+		const res1 = await app.request("/api/json", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res1.status).toBe(200);
+
+		const res2 = await app.request("/api/json", {
+			method: "POST",
+			headers: { "Idempotency-Key": key },
+		});
+		expect(res2.status).toBe(200);
+		expect(res2.headers.get("Idempotency-Replayed")).toBe("true");
+
+		// Verify the stored record doesn't contain transport headers
+		const storeKey = `POST:/api/json:${encodeURIComponent(key)}`;
+		const record = await store.get(storeKey);
+		expect(record?.response?.headers["content-length"]).toBeUndefined();
+		expect(record?.response?.headers["transfer-encoding"]).toBeUndefined();
+		// But content-type is still preserved
+		expect(record?.response?.headers["content-type"]).toBeDefined();
 	});
 
 	// Custom fingerprint function
@@ -905,7 +956,7 @@ describe("idempotency middleware", () => {
 				headers: { "Idempotency-Key": "x".repeat(300) },
 			});
 			expect(res2.status).toBe(400);
-			expect(res2.headers.get("Content-Type")).toBe("application/problem+json");
+			expect(res2.headers.get("Content-Type")).toBe("application/problem+json; charset=utf-8");
 			const body2 = await res2.json();
 			expect(body2.code).toBe("KEY_TOO_LONG");
 		});
@@ -1699,6 +1750,37 @@ describe("idempotency middleware", () => {
 			});
 			expect(res.status).toBe(413);
 			const body = await res.json();
+			expect(body.code).toBe("BODY_TOO_LARGE");
+		});
+		it("rejects oversized body on second request with existing completed record", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, maxBodySize: 50 }));
+			app.post("/api/data", (c) => c.text("ok"));
+
+			// First request succeeds with small body
+			const res1 = await app.request("/api/data", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-body-existing",
+					"Content-Type": "text/plain",
+				},
+				body: "small",
+			});
+			expect(res1.status).toBe(200);
+
+			// Second request with same key but oversized body → existing record found,
+			// body read in existing branch triggers maxBodySize check
+			const res2 = await app.request("/api/data", {
+				method: "POST",
+				headers: {
+					"Idempotency-Key": "key-body-existing",
+					"Content-Type": "text/plain",
+				},
+				body: "x".repeat(100),
+			});
+			expect(res2.status).toBe(413);
+			const body = await res2.json();
 			expect(body.code).toBe("BODY_TOO_LARGE");
 		});
 	});
