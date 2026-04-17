@@ -108,6 +108,7 @@
 		"url": "https://github.com/paveg/hono-idempotency/issues"
 	},
 	"license": "MIT",
+	"funding": "https://github.com/sponsors/paveg",
 	"publishConfig": {
 		"access": "public",
 		"provenance": true
