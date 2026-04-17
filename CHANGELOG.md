@@ -1,5 +1,11 @@
 # hono-idempotency
 
+## 0.8.4
+
+### Patch Changes
+
+- [#123](https://github.com/paveg/hono-idempotency/pull/123) [`347cb01`](https://github.com/paveg/hono-idempotency/commit/347cb01f5dd863c9d0709ec2654ff1771cfce78d) Thanks [@paveg](https://github.com/paveg)! - Bump development dependencies to resolve Dependabot alerts (vite 7.3.2, rollup 4.60.1, picomatch 2.3.2/4.0.4, minimatch 9.0.9, hono 4.12.14). Only devDependencies are affected; published runtime code is unchanged.
+
 ## 0.8.3
 
 ### Patch Changes
