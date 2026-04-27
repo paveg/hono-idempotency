@@ -13,7 +13,7 @@ Stripe-style Idempotency-Key middleware for [Hono](https://hono.dev). IETF [draf
 - Idempotency-Key header support for POST/PATCH (configurable)
 - Request fingerprinting (SHA-256) prevents key reuse with different payloads
 - Concurrent request protection with optimistic locking
-- RFC 9457 Problem Details error responses with error codes (`MISSING_KEY`, `KEY_TOO_LONG`, `FINGERPRINT_MISMATCH`, `CONFLICT`)
+- RFC 9457 Problem Details error responses with error codes (`MISSING_KEY`, `KEY_TOO_LONG`, `BODY_TOO_LARGE`, `FINGERPRINT_MISMATCH`, `CONFLICT`)
 - Replayed responses include `Idempotency-Replayed: true` header
 - Non-2xx responses are not cached (Stripe pattern — allows client retry)
 - Per-request opt-out via `skipRequest`
@@ -79,6 +79,12 @@ idempotency({
   // Maximum key length (default: 256)
   maxKeyLength: 256,
 
+  // Maximum request body size in bytes (no default — disabled when unset).
+  // Pre-checked via Content-Length, then enforced against actual body bytes.
+  // Returns 413 BODY_TOO_LARGE when exceeded. Only applies when an
+  // Idempotency-Key header is present.
+  maxBodySize: 1024 * 1024,
+
   // Custom fingerprint function (default: SHA-256 of method + path + body)
   fingerprint: (c) => `${c.req.method}:${c.req.path}`,
 
@@ -90,6 +96,11 @@ idempotency({
 
   // Custom error response handler (default: RFC 9457 Problem Details)
   onError: (error, c) => c.json({ error: error.title }, error.status),
+
+  // Observability hooks. Errors thrown inside hooks are swallowed —
+  // hooks must not affect request processing.
+  onCacheHit: (key, c) => console.log("idempotency hit", { key }),
+  onCacheMiss: (key, c) => console.log("idempotency miss", { key }),
 });
 ```
 
@@ -130,6 +141,7 @@ Override the default RFC 9457 error responses with a custom handler. Each error 
 | `MISSING_KEY` | 400 | `required: true` and no header |
 | `KEY_TOO_LONG` | 400 | Key exceeds `maxKeyLength` |
 | `CONFLICT` | 409 | Concurrent request with same key |
+| `BODY_TOO_LARGE` | 413 | Body exceeds `maxBodySize` |
 | `FINGERPRINT_MISMATCH` | 422 | Same key, different request body |
 
 ```ts
@@ -344,6 +356,7 @@ All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9
 | 400 | `MISSING_KEY` | `/errors/missing-key` | `required: true` and no header |
 | 400 | `KEY_TOO_LONG` | `/errors/key-too-long` | Key exceeds `maxKeyLength` |
 | 409 | `CONFLICT` | `/errors/conflict` | Concurrent request with same key |
+| 413 | `BODY_TOO_LARGE` | `/errors/body-too-large` | Body exceeds `maxBodySize` |
 | 422 | `FINGERPRINT_MISMATCH` | `/errors/fingerprint-mismatch` | Same key, different request body |
 
 When [hono-problem-details](https://github.com/paveg/hono-problem-details) is installed, error responses are generated using its `problemDetails().getResponse()`. Otherwise, a built-in fallback is used. No configuration needed — detection is automatic.
