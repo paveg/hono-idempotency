@@ -1,0 +1,92 @@
+# hono-idempotency
+
+> Stripe-style `Idempotency-Key` middleware for [Hono](https://hono.dev). IETF [draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) compliant. Pluggable stores (memory, Redis, Cloudflare KV / D1 / Durable Objects). Works on any Web Standards runtime — Node.js, Deno, Bun, Cloudflare Workers.
+
+The middleware caches successful (2xx) responses keyed by the client-supplied `Idempotency-Key` header, so retried requests replay the original response instead of re-executing the handler. Concurrent duplicates are rejected with `409 Conflict`. Mismatched request bodies for the same key are rejected with `422` (fingerprint mismatch). Errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) with stable `code` fields (`MISSING_KEY`, `KEY_TOO_LONG`, `BODY_TOO_LARGE`, `FINGERPRINT_MISMATCH`, `CONFLICT`).
+
+Key design choices:
+- Non-2xx responses are **not** cached — Stripe pattern, allows clients to retry with the same key
+- Lock acquisition is store-specific: `SET NX EX` (Redis), `INSERT OR IGNORE` (D1), single-writer (Durable Objects), in-process Map (memory), best-effort read-back (KV)
+- Replayed responses include the `Idempotency-Replayed: true` header
+- Store key format: `${encodeURIComponent(prefix)}:${method}:${path}:${encodeURIComponent(key)}`
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/paveg/hono-idempotency/main/README.md): Full usage guide — install, options, store comparison table, error codes, RPC client integration
+- [Public API surface](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/index.ts): Every exported symbol and type from `hono-idempotency`
+- [Middleware options & types](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/types.ts): `IdempotencyOptions`, `IdempotencyEnv`, `IdempotencyRecord`, `StoredResponse`
+- [Store interface](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/stores/types.ts): `IdempotencyStore` contract — implement `get / lock / complete / delete / purge` to add a custom backend
+- [Error codes & Problem Details](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/errors.ts): `IdempotencyErrorCode`, `problemResponse`, `clampHttpStatus`
+- [CLAUDE.md](https://raw.githubusercontent.com/paveg/hono-idempotency/main/CLAUDE.md): Architecture overview tuned for AI assistants — option matrix, store matrix, conventions
+
+## Source
+
+- [middleware.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/middleware.ts): Core middleware — method filter, `skipRequest`, key validation, fingerprint check, `cacheKeyPrefix`, lock/complete/delete flow, `onError`
+- [fingerprint.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/fingerprint.ts): SHA-256 fingerprint of method + path + body via Web Crypto API
+- [stores/memory.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/stores/memory.ts): In-process store with FIFO eviction and lazy TTL sweep — for development / single-instance
+- [stores/redis.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/stores/redis.ts): Redis store — atomic `SET NX EX`, compatible with `ioredis`, `node-redis`, `@upstash/redis`
+- [stores/cloudflare-kv.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/stores/cloudflare-kv.ts): Cloudflare KV store — eventual consistency, automatic TTL via `expirationTtl`
+- [stores/cloudflare-d1.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/stores/cloudflare-d1.ts): Cloudflare D1 store — strong consistency via SQL, regex-validated table name
+- [stores/durable-objects.ts](https://raw.githubusercontent.com/paveg/hono-idempotency/main/src/stores/durable-objects.ts): Durable Objects store — single-writer atomicity, manual TTL via `purge()`
+
+## Examples
+
+```ts
+// Minimal setup
+import { Hono } from "hono";
+import { idempotency } from "hono-idempotency";
+import { memoryStore } from "hono-idempotency/stores/memory";
+
+const app = new Hono();
+app.use("/api/*", idempotency({ store: memoryStore() }));
+app.post("/api/payments", (c) => c.json({ id: "pay_123" }, 201));
+```
+
+```ts
+// Multi-tenant with custom error handling and per-request opt-out
+import { Hono } from "hono";
+import { idempotency, problemResponse } from "hono-idempotency";
+import { redisStore } from "hono-idempotency/stores/redis";
+import Redis from "ioredis";
+
+const app = new Hono();
+
+app.use(
+  "/api/*",
+  idempotency({
+    store: redisStore({ client: new Redis(), ttl: 86400 }),
+    required: true,
+    cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+    skipRequest: (c) => c.req.path === "/api/health",
+    onError: (error, c) => {
+      if (error.code === "CONFLICT") return c.json({ retryAfter: 1 }, 409);
+      return problemResponse(error);
+    },
+  }),
+);
+```
+
+```ts
+// Cloudflare Workers with D1 — store created per-request from c.env
+import { Hono } from "hono";
+import { idempotency } from "hono-idempotency";
+import { d1Store } from "hono-idempotency/stores/cloudflare-d1";
+
+type Bindings = { IDEMPOTENCY_DB: D1Database };
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.use("/api/*", async (c, next) => {
+  const store = d1Store({ database: c.env.IDEMPOTENCY_DB });
+  return idempotency({ store })(c, next);
+});
+```
+
+## Optional
+
+- [CHANGELOG](https://raw.githubusercontent.com/paveg/hono-idempotency/main/CHANGELOG.md): Release notes (changesets-managed)
+- [CONTRIBUTING](https://raw.githubusercontent.com/paveg/hono-idempotency/main/CONTRIBUTING.md): Development workflow, TDD, conventional commits
+- [SECURITY](https://raw.githubusercontent.com/paveg/hono-idempotency/main/SECURITY.md): Vulnerability disclosure policy
+- [LICENSE](https://raw.githubusercontent.com/paveg/hono-idempotency/main/LICENSE): MIT
+- [IETF draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/): Spec the middleware implements
+- [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457): Error response format
+- [Hono RPC client](https://hono.dev/docs/guides/rpc): How `IdempotencyEnv` flows to typed clients
