@@ -2,7 +2,7 @@
 
 > Stripe-style `Idempotency-Key` middleware for [Hono](https://hono.dev). IETF [draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) compliant. Pluggable stores (memory, Redis, Cloudflare KV / D1 / Durable Objects). Works on any Web Standards runtime — Node.js, Deno, Bun, Cloudflare Workers.
 
-The middleware caches successful (2xx) responses keyed by the client-supplied `Idempotency-Key` header, so retried requests replay the original response instead of re-executing the handler. Concurrent duplicates are rejected with `409 Conflict`. Mismatched request bodies for the same key are rejected with `422` (fingerprint mismatch). Errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) with stable `code` fields (`MISSING_KEY`, `KEY_TOO_LONG`, `FINGERPRINT_MISMATCH`, `CONFLICT`).
+The middleware caches successful (2xx) responses keyed by the client-supplied `Idempotency-Key` header, so retried requests replay the original response instead of re-executing the handler. Concurrent duplicates are rejected with `409 Conflict`. Mismatched request bodies for the same key are rejected with `422` (fingerprint mismatch). Errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) with stable `code` fields (`MISSING_KEY`, `KEY_TOO_LONG`, `BODY_TOO_LARGE`, `FINGERPRINT_MISMATCH`, `CONFLICT`).
 
 Key design choices:
 - Non-2xx responses are **not** cached — Stripe pattern, allows clients to retry with the same key
@@ -44,9 +44,12 @@ app.post("/api/payments", (c) => c.json({ id: "pay_123" }, 201));
 
 ```ts
 // Multi-tenant with custom error handling and per-request opt-out
+import { Hono } from "hono";
 import { idempotency, problemResponse } from "hono-idempotency";
 import { redisStore } from "hono-idempotency/stores/redis";
 import Redis from "ioredis";
+
+const app = new Hono();
 
 app.use(
   "/api/*",
@@ -65,6 +68,8 @@ app.use(
 
 ```ts
 // Cloudflare Workers with D1 — store created per-request from c.env
+import { Hono } from "hono";
+import { idempotency } from "hono-idempotency";
 import { d1Store } from "hono-idempotency/stores/cloudflare-d1";
 
 type Bindings = { IDEMPOTENCY_DB: D1Database };
