@@ -33,6 +33,12 @@ npm install hono-idempotency
 pnpm add hono-idempotency
 ```
 
+### Requirements
+
+- Hono `>= 4.0.0` (peer dependency)
+- TypeScript `>= 5.0` — the published `.d.ts` files are CI-tested against TS 5.0, 5.4, 5.7, and 5.9. Older TS versions may work but are not verified.
+- Node.js `>= 20`
+
 ## Quick Start
 
 ```ts

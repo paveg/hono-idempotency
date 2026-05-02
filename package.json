@@ -87,6 +87,7 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
+		"test:compat": "tsc -p tsconfig.compat.json",
 		"release": "pnpm build && changeset publish",
 		"version-packages": "changeset version && pnpm lint:fix"
 	},
@@ -134,7 +135,7 @@
 		"hono-problem-details": "0.1.4",
 		"lefthook": "2.1.1",
 		"tsup": "^8.5.1",
-		"typescript": "^5.9.3",
+		"typescript": "^6.0.3",
 		"vitest": "^3.2.4"
 	},
 	"packageManager": "pnpm@10.14.0",
