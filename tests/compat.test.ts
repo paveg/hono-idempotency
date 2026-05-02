@@ -55,7 +55,10 @@ describe("middleware fallback when hono-problem-details is unavailable", () => {
 		const { idempotency } = await import("../src/middleware.js");
 		const { memoryStore } = await import("../src/stores/memory.js");
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store: memoryStore(), required: true }));
+		app.use(
+			"/api/*",
+			idempotency({ store: memoryStore(), required: true, dangerouslyAllowGlobalKeys: true }),
+		);
 		app.post("/api/test", (c) => c.json({ ok: true }));
 
 		const res = await app.request("/api/test", { method: "POST" });
