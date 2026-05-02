@@ -36,8 +36,8 @@ pnpm add hono-idempotency
 ### Requirements
 
 - Hono `>= 4.0.0` (peer dependency)
-- TypeScript `>= 5.0` — the published `.d.ts` files are CI-tested against TS 5.0, 5.4, 5.7, and 5.9. Older TS versions may work but are not verified.
-- Node.js `>= 20`
+- TypeScript `>= 5.0` — the published `.d.ts` files are CI-tested against TS 5.0, 5.4, 5.7, 5.9, and 6.0. Older TS versions may work but are not verified.
+- Node.js `>= 22` — Node.js 20 reached end-of-life on 2026-04-30 and is no longer tested.
 
 ## Quick Start
 
