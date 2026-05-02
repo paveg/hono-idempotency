@@ -1,5 +1,21 @@
 # hono-idempotency
 
+## 0.9.0
+
+### Minor Changes
+
+- [#130](https://github.com/paveg/hono-idempotency/pull/130) [`3976dd8`](https://github.com/paveg/hono-idempotency/commit/3976dd8987f4b03b12ce18b55f6d8b19efd020d6) Thanks [@paveg](https://github.com/paveg)! - Add multi-tenant safety warning. When `cacheKeyPrefix` is not configured and `methods` includes a state-mutating verb (POST/PATCH/PUT/DELETE), the middleware now emits a one-time `console.warn` at factory construction time pointing to the recommended fix.
+
+  Set the new `dangerouslyAllowGlobalKeys: true` option to acknowledge a single-tenant deployment and silence the warning. Existing behaviour is unchanged for users who already set `cacheKeyPrefix`.
+
+  Closes #126.
+
+- [#133](https://github.com/paveg/hono-idempotency/pull/133) [`6dfd89e`](https://github.com/paveg/hono-idempotency/commit/6dfd89eab6e9b2f30e1801d827b293667d8b8ed8) Thanks [@paveg](https://github.com/paveg)! - Drop Node.js 20 support. Minimum supported Node.js version is now 22.
+
+  Node.js 20 reached end-of-life on 2026-04-30. CI is now tested on Node 22 and 24 only, and `package.json` declares `engines.node: ">=22"`. The published bundle does not use any 22-only Node APIs, but the supported range now reflects what is actually tested.
+
+  Users on Node 20 should upgrade to Node 22 (the current LTS).
+
 ## 0.8.4
 
 ### Patch Changes
