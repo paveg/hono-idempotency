@@ -56,4 +56,15 @@ export interface IdempotencyOptions {
 	 * Errors are swallowed — hooks must not affect request processing.
 	 */
 	onCacheMiss?: (key: string, c: Context) => void | Promise<void>;
+	/**
+	 * Opt out of the multi-tenant safety warning.
+	 *
+	 * When `cacheKeyPrefix` is not set and `methods` includes any state-mutating
+	 * method (POST/PATCH/PUT/DELETE), the middleware emits a one-time
+	 * `console.warn` at factory construction time. Set this to `true` to
+	 * acknowledge that the deployment is single-tenant and silence the warning.
+	 *
+	 * @default false
+	 */
+	dangerouslyAllowGlobalKeys?: boolean;
 }
