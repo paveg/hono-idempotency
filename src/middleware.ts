@@ -21,8 +21,26 @@ const EXCLUDED_STORE_HEADERS = new Set(["set-cookie", "content-length", "transfe
 const DEFAULT_RETRY_AFTER = "1";
 const REPLAY_HEADER = "Idempotency-Replayed";
 const encoder = new TextEncoder();
+const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
+const GLOBAL_KEYS_WARNING = `[hono-idempotency] WARNING: cacheKeyPrefix is not configured.
+  Two users sending the same Idempotency-Key will replay each other's cached responses (cross-tenant data leak).
+  Fix:
+    cacheKeyPrefix: (c) => \`\${c.get("user")?.id ?? "anon"}:\`
+  Single-tenant? Set dangerouslyAllowGlobalKeys: true to silence.
+  Docs: https://github.com/paveg/hono-idempotency#cachekeyprefix`;
+
+function shouldWarnGlobalKeys(options: IdempotencyOptions): boolean {
+	if (options.dangerouslyAllowGlobalKeys === true) return false;
+	if (options.cacheKeyPrefix !== undefined) return false;
+	const methods = options.methods ?? DEFAULT_METHODS;
+	return methods.some((m) => MUTATING_METHODS.has(m.toUpperCase()));
+}
 
 export function idempotency(options: IdempotencyOptions) {
+	if (shouldWarnGlobalKeys(options)) {
+		console.warn(GLOBAL_KEYS_WARNING);
+	}
 	const {
 		store,
 		headerName = "Idempotency-Key",
