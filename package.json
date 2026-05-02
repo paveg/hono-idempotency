@@ -115,7 +115,7 @@
 		"provenance": true
 	},
 	"engines": {
-		"node": ">=20"
+		"node": ">=22"
 	},
 	"peerDependencies": {
 		"hono": ">=4.0.0",
