@@ -7,7 +7,7 @@ function createApp(options: Parameters<typeof idempotency>[0] = {}) {
 	const store = options.store ?? memoryStore();
 	const app = new Hono();
 
-	app.use("/api/*", idempotency({ store, ...options }));
+	app.use("/api/*", idempotency({ dangerouslyAllowGlobalKeys: true, store, ...options }));
 
 	app.post("/api/text", (c) => c.text("hello"));
 	app.post("/api/json", (c) => c.json({ message: "ok" }));
@@ -160,7 +160,7 @@ describe("idempotency middleware", () => {
 	it("returns 409 when store.get() finds a processing record", async () => {
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/data", (c) => c.text("ok"));
 
 		// Manually insert a processing record into the store
@@ -231,7 +231,7 @@ describe("idempotency middleware", () => {
 	it("deletes key on handler error, allowing retry", async () => {
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/error", () => {
 			throw new Error("boom");
 		});
@@ -256,7 +256,7 @@ describe("idempotency middleware", () => {
 	it("deletes key on non-2xx response, allowing retry", async () => {
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/server-error", (c) => c.json({ error: "fail" }, 500));
 
 		const key = "key-500";
@@ -366,7 +366,7 @@ describe("idempotency middleware", () => {
 	it("exposes idempotency key via c.get('idempotencyKey')", async () => {
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/context-check", (c) => {
 			const idemKey = c.get("idempotencyKey");
 			return c.json({ key: idemKey });
@@ -519,6 +519,7 @@ describe("idempotency middleware", () => {
 			"/api/*",
 			idempotency({
 				store,
+				dangerouslyAllowGlobalKeys: true,
 				// Only use method + path, ignore body
 				fingerprint: (c) => `${c.req.method}:${c.req.path}`,
 			}),
@@ -572,7 +573,7 @@ describe("idempotency middleware", () => {
 		};
 
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store: racyStore }));
+		app.use("/api/*", idempotency({ store: racyStore, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/race", (c) => c.json({ ok: true }));
 
 		const res = await app.request("/api/race", {
@@ -590,7 +591,7 @@ describe("idempotency middleware", () => {
 	it("catch block deletes key when handler throws non-Error value", async () => {
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/throw-string", () => {
 			throw "non-error value";
 		});
@@ -621,6 +622,7 @@ describe("idempotency middleware", () => {
 				"/api/*",
 				idempotency({
 					store,
+					dangerouslyAllowGlobalKeys: true,
 					skipRequest: (c) => c.req.path === "/api/health",
 				}),
 			);
@@ -675,6 +677,7 @@ describe("idempotency middleware", () => {
 				"/api/*",
 				idempotency({
 					store,
+					dangerouslyAllowGlobalKeys: true,
 					skipRequest: async () => {
 						await new Promise((r) => setTimeout(r, 1));
 						return true;
@@ -854,6 +857,7 @@ describe("idempotency middleware", () => {
 				"/api/*",
 				idempotency({
 					store,
+					dangerouslyAllowGlobalKeys: true,
 					required: true,
 					maxKeyLength: 10,
 					onError: (error) => {
@@ -911,6 +915,7 @@ describe("idempotency middleware", () => {
 				"/api/*",
 				idempotency({
 					store,
+					dangerouslyAllowGlobalKeys: true,
 					required: true,
 					onError: (_error, c) =>
 						new Response(JSON.stringify({ path: c.req.path, method: c.req.method }), {
@@ -1069,6 +1074,7 @@ describe("idempotency middleware", () => {
 				"/api/*",
 				idempotency({
 					store,
+					dangerouslyAllowGlobalKeys: true,
 					onCacheHit: (_key, c) => {
 						hitPath = c.req.path;
 					},
@@ -1124,7 +1130,14 @@ describe("idempotency middleware", () => {
 			const store = memoryStore();
 			const app = new Hono();
 			let callCount = 0;
-			app.use("/api/*", idempotency({ store, onCacheMiss: (key) => misses.push(key) }));
+			app.use(
+				"/api/*",
+				idempotency({
+					store,
+					dangerouslyAllowGlobalKeys: true,
+					onCacheMiss: (key) => misses.push(key),
+				}),
+			);
 			app.post("/api/flaky", (c) => {
 				callCount++;
 				return callCount === 1 ? c.json({ error: "fail" }, 500) : c.json({ ok: true });
@@ -1211,6 +1224,7 @@ describe("idempotency middleware", () => {
 				idempotency({
 					store,
 					cacheKeyPrefix: (c) => c.req.header("X-Tenant-Id") ?? "default",
+					// cacheKeyPrefix is set, so no warning needed here
 				}),
 			);
 			app.post("/api/data", (c) => {
@@ -1248,7 +1262,7 @@ describe("idempotency middleware", () => {
 	it("does not replay Set-Cookie header from cached response", async () => {
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/with-cookie", (c) => {
 			return new Response("ok", {
 				status: 200,
@@ -1302,7 +1316,10 @@ describe("idempotency middleware", () => {
 			let callCount = 0;
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, headerName: "X-Request-Id" }));
+			app.use(
+				"/api/*",
+				idempotency({ store, dangerouslyAllowGlobalKeys: true, headerName: "X-Request-Id" }),
+			);
 			app.post("/api/counter", (c) => {
 				callCount++;
 				return c.json({ count: callCount });
@@ -1399,7 +1416,7 @@ describe("idempotency middleware", () => {
 			let callCount = 0;
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, methods: [] }));
+			app.use("/api/*", idempotency({ store, methods: [] })); // no mutating methods → no warning
 			app.post("/api/counter", (c) => {
 				callCount++;
 				return c.json({ count: callCount });
@@ -1420,7 +1437,7 @@ describe("idempotency middleware", () => {
 		it("custom methods: ['PUT'] applies idempotency to PUT only", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, methods: ["PUT"] }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, methods: ["PUT"] }));
 			app.put("/api/resource", (c) => c.json({ updated: true }));
 			app.post("/api/resource", (c) => c.json({ created: true }));
 
@@ -1442,7 +1459,10 @@ describe("idempotency middleware", () => {
 			// POST is not in methods list — passes through without idempotency
 			let postCount = 0;
 			const app2 = new Hono();
-			app2.use("/api/*", idempotency({ store: memoryStore(), methods: ["PUT"] }));
+			app2.use(
+				"/api/*",
+				idempotency({ store: memoryStore(), dangerouslyAllowGlobalKeys: true, methods: ["PUT"] }),
+			);
 			app2.post("/api/resource", (c) => {
 				postCount++;
 				return c.json({ count: postCount });
@@ -1464,7 +1484,7 @@ describe("idempotency middleware", () => {
 		it("status 299 is cached (res.ok = true)", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 			app.post("/api/status-299", (c) => new Response("edge", { status: 299 }));
 
 			const key = "key-299";
@@ -1482,7 +1502,7 @@ describe("idempotency middleware", () => {
 		it("status 300 is not cached (res.ok = false)", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 			app.post(
 				"/api/status-300",
 				(c) => new Response(null, { status: 300, headers: { Location: "/other" } }),
@@ -1502,7 +1522,7 @@ describe("idempotency middleware", () => {
 		it("status 200 is cached (lower bound)", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 			app.post("/api/ok", (c) => c.text("ok"));
 
 			const key = "key-200";
@@ -1519,7 +1539,7 @@ describe("idempotency middleware", () => {
 		it("status 400 is not cached (client error)", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 			app.post("/api/status-400", () => new Response("bad request", { status: 400 }));
 
 			const key = "key-400";
@@ -1555,7 +1575,10 @@ describe("idempotency middleware", () => {
 		const store = memoryStore();
 		const fixedFp = "fixed-fingerprint";
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store, fingerprint: () => fixedFp }));
+		app.use(
+			"/api/*",
+			idempotency({ store, dangerouslyAllowGlobalKeys: true, fingerprint: () => fixedFp }),
+		);
 		app.post("/api/text", (c) => c.text("hello"));
 
 		const key = "key-no-response";
@@ -1623,7 +1646,7 @@ describe("idempotency middleware", () => {
 		it("rejects request when Content-Length exceeds maxBodySize", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 100 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1642,7 +1665,7 @@ describe("idempotency middleware", () => {
 		it("allows request when Content-Length is within maxBodySize", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 100 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1672,7 +1695,7 @@ describe("idempotency middleware", () => {
 		it("rejects large body even when Content-Length header is missing", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 100 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1688,7 +1711,7 @@ describe("idempotency middleware", () => {
 		it("allows small body when Content-Length header is missing", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 100 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1702,7 +1725,7 @@ describe("idempotency middleware", () => {
 		it("maxBodySize: 0 with empty body passes (0 is NOT > 0)", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 0 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 0 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1718,7 +1741,7 @@ describe("idempotency middleware", () => {
 		it("maxBodySize: 0 rejects any non-empty body", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 0 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 0 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1737,7 +1760,7 @@ describe("idempotency middleware", () => {
 		it("rejects request when Content-Length is negative", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 100 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 100 }));
 			app.post("/api/text", (c) => c.text("ok"));
 
 			const res = await app.request("/api/text", {
@@ -1755,7 +1778,7 @@ describe("idempotency middleware", () => {
 		it("rejects oversized body on second request with existing completed record", async () => {
 			const store = memoryStore();
 			const app = new Hono();
-			app.use("/api/*", idempotency({ store, maxBodySize: 50 }));
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 50 }));
 			app.post("/api/data", (c) => c.text("ok"));
 
 			// First request succeeds with small body
@@ -1808,7 +1831,10 @@ describe("idempotency middleware", () => {
 		};
 
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store, fingerprint: () => "fixed-fp" }));
+		app.use(
+			"/api/*",
+			idempotency({ store, dangerouslyAllowGlobalKeys: true, fingerprint: () => "fixed-fp" }),
+		);
 		app.post("/api/text", (c) => c.text("ok"));
 
 		const res = await app.request("/api/text", {
@@ -1826,7 +1852,7 @@ describe("idempotency middleware", () => {
 		let callCount = 0;
 		const store = memoryStore();
 		const app = new Hono();
-		app.use("/api/*", idempotency({ store }));
+		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 		app.post("/api/flaky", (c) => {
 			callCount++;
 			if (callCount === 1) {
