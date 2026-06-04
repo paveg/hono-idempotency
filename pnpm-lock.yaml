@@ -22,10 +22,10 @@ importers:
         version: 3.2.4(vitest@3.2.4)
       hono:
         specifier: ^4.12.14
-        version: 4.12.18
+        version: 4.12.21
       hono-problem-details:
         specifier: 0.1.4
-        version: 0.1.4(hono@4.12.18)
+        version: 0.1.4(hono@4.12.21)
       lefthook:
         specifier: 2.1.1
         version: 2.1.1
@@ -841,8 +841,8 @@ packages:
       zod:
         optional: true
 
-  hono@4.12.18:
-    resolution: {integrity: sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ==}
+  hono@4.12.21:
+    resolution: {integrity: sha512-uV63apnb0kyPtAUwoWgaGh9HyIFcv8lgmzPZSiTBQAFOFGIzka5EZ1dZocmGnn0XdX0+XTqJ6Tqv7selMuGLRQ==}
     engines: {node: '>=16.9.0'}
 
   html-escaper@2.0.2:
@@ -2200,11 +2200,11 @@ snapshots:
 
   has-flag@4.0.0: {}
 
-  hono-problem-details@0.1.4(hono@4.12.18):
+  hono-problem-details@0.1.4(hono@4.12.21):
     dependencies:
-      hono: 4.12.18
+      hono: 4.12.21
 
-  hono@4.12.18: {}
+  hono@4.12.21: {}
 
   html-escaper@2.0.2: {}
 
