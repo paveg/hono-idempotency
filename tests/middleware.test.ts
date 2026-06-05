@@ -1806,6 +1806,26 @@ describe("idempotency middleware", () => {
 			const body = await res2.json();
 			expect(body.code).toBe("BODY_TOO_LARGE");
 		});
+
+		it("replays response on second request when body stays within maxBodySize", async () => {
+			const store = memoryStore();
+			const app = new Hono();
+			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true, maxBodySize: 50 }));
+			app.post("/api/data", (c) => c.text("ok"));
+
+			const headers = {
+				"Idempotency-Key": "key-body-within-limit",
+				"Content-Type": "text/plain",
+			};
+
+			const res1 = await app.request("/api/data", { method: "POST", headers, body: "small" });
+			expect(res1.status).toBe(200);
+
+			// Second request: existing record found, body within maxBodySize → replay
+			const res2 = await app.request("/api/data", { method: "POST", headers, body: "small" });
+			expect(res2.status).toBe(200);
+			expect(await res2.text()).toBe("ok");
+		});
 	});
 
 	// Defensive: replayResponse with out-of-range stored status
