@@ -8,3 +8,13 @@ updates:
       actions:
         patterns:
           - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
