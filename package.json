@@ -131,7 +131,7 @@
 		"@changesets/changelog-github": "0.5.2",
 		"@changesets/cli": "2.29.8",
 		"@vitest/coverage-v8": "^4.1.8",
-		"hono": "^4.12.14",
+		"hono": "^4.12.27",
 		"hono-problem-details": "0.1.4",
 		"lefthook": "2.1.1",
 		"tsup": "^8.5.1",
