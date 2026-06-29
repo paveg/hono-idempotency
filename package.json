@@ -118,7 +118,7 @@
 		"node": ">=22"
 	},
 	"peerDependencies": {
-		"hono": ">=4.12.25",
+		"hono": ">=4.12.27",
 		"hono-problem-details": ">=0.1.0"
 	},
 	"peerDependenciesMeta": {
