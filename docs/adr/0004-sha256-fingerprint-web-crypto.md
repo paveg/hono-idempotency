@@ -22,6 +22,8 @@ tenant headers or ignore volatile body fields).
 
 - Zero runtime dependencies and identical behavior across runtimes.
 - The body is read via `c.req.text()` (Hono caches it, so the handler can still
-  consume it); `maxBodySize` bounds the memory cost of buffering it.
+  consume it). `maxBodySize` is pre-checked against `Content-Length` when that
+  header is present, but with chunked or misdeclared requests the body is fully
+  buffered before the size check — it bounds what is accepted, not peak memory.
 - Fingerprinting is per method+path by construction, matching the store key
   format `${prefix}:${method}:${path}:${key}`.
