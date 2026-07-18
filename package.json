@@ -140,12 +140,12 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.4",
-		"@changesets/changelog-github": "0.5.2",
-		"@changesets/cli": "2.29.8",
+		"@changesets/changelog-github": "0.7.0",
+		"@changesets/cli": "2.31.1",
 		"@vitest/coverage-v8": "^4.1.8",
 		"hono": "^4.12.27",
-		"hono-problem-details": "0.1.4",
-		"lefthook": "2.1.1",
+		"hono-problem-details": "0.8.2",
+		"lefthook": "2.1.10",
 		"tsup": "^8.5.1",
 		"typescript": "^6.0.3",
 		"vitest": "^4.1.8"
