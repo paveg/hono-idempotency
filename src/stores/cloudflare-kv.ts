@@ -25,11 +25,18 @@ export interface KVStoreOptions {
 export function kvStore(options: KVStoreOptions): IdempotencyStore {
 	const { namespace: kv, ttl = DEFAULT_TTL } = options;
 
+	// KV parses `type: "json"` internally and throws on corrupt data — treat as absent
+	const safeGetJson = async (key: string): Promise<unknown> => {
+		try {
+			return await kv.get(key, { type: "json" });
+		} catch {
+			return null;
+		}
+	};
+
 	return {
 		async get(key) {
-			const raw = (await kv.get(key, { type: "json" })) as
-				| (IdempotencyRecord & { lockId?: string })
-				| null;
+			const raw = (await safeGetJson(key)) as (IdempotencyRecord & { lockId?: string }) | null;
 			if (!raw) return undefined;
 			// Strip internal lockId before returning to consumers
 			const { lockId: _, ...record } = raw;
@@ -37,7 +44,7 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 		},
 
 		async lock(key, record) {
-			const existing = (await kv.get(key, { type: "json" })) as IdempotencyRecord | null;
+			const existing = (await safeGetJson(key)) as IdempotencyRecord | null;
 			if (existing) return false;
 
 			// Embed a unique lockId to distinguish concurrent writers with the same fingerprint
@@ -52,16 +59,12 @@ export function kvStore(options: KVStoreOptions): IdempotencyStore {
 			await kv.put(key, serialized, { expirationTtl: ttl });
 
 			// Read-back verification using lockId (not fingerprint) for reliable race detection
-			const stored = (await kv.get(key, { type: "json" })) as
-				| (IdempotencyRecord & { lockId?: string })
-				| null;
+			const stored = (await safeGetJson(key)) as (IdempotencyRecord & { lockId?: string }) | null;
 			return stored?.lockId === lockId;
 		},
 
 		async complete(key, response) {
-			const raw = (await kv.get(key, { type: "json" })) as
-				| (IdempotencyRecord & { lockId?: string })
-				| null;
+			const raw = (await safeGetJson(key)) as (IdempotencyRecord & { lockId?: string }) | null;
 			if (!raw) return;
 			const { lockId: _, ...record } = raw;
 			record.status = RECORD_STATUS_COMPLETED;

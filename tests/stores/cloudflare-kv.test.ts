@@ -288,4 +288,32 @@ describe("kvStore", () => {
 		const result = await store.lock("key-1", makeRecord("key-1", "same-fp"));
 		expect(result).toBe(false);
 	});
+
+	it("get() returns undefined when stored value is corrupt JSON", async () => {
+		const kv = createMockKV();
+		kv.data.set("key-1", "{corrupt");
+		const store = kvStore({ namespace: kv as never });
+
+		await expect(store.get("key-1")).resolves.toBeUndefined();
+	});
+
+	it("lock() acquires the lock by overwriting a corrupt entry", async () => {
+		const kv = createMockKV();
+		kv.data.set("key-1", "{corrupt");
+		const store = kvStore({ namespace: kv as never });
+		const record = makeRecord("key-1");
+
+		const result = await store.lock("key-1", record);
+		expect(result).toBe(true);
+		expect(await store.get("key-1")).toEqual(record);
+	});
+
+	it("complete() is a no-op when stored value is corrupt JSON", async () => {
+		const kv = createMockKV();
+		kv.data.set("key-1", "{corrupt");
+		const store = kvStore({ namespace: kv as never });
+
+		await expect(store.complete("key-1", makeResponse())).resolves.toBeUndefined();
+		expect(kv.data.get("key-1")).toBe("{corrupt");
+	});
 });

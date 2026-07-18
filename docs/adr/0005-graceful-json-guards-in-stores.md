@@ -33,7 +33,7 @@ tolerate (see ADR 0001):
   the Redis, KV, and D1 suites.
 - The policy is intentionally uniform in outcome but not in mechanism — memory
   and Durable Objects need no guards because they never serialize.
-- Known gaps (candidate hardening work, tracked outside this ADR): KV `get()`
-  relies on the runtime's internal `type: "json"` parse, which throws on
-  corrupt data; Durable Objects `complete()` does not guard `storage.put()`
-  against a throwing write.
+- Two gaps found by a later adversarial review were closed in a follow-up: KV
+  reads now guard the runtime's internal `type: "json"` parse (corrupt data
+  reads as absent), and Durable Objects `complete()` no longer propagates a
+  throwing `storage.put()`.

@@ -50,7 +50,11 @@ export function durableObjectStore(options: DurableObjectStoreOptions): Idempote
 			if (!record) return;
 			record.status = RECORD_STATUS_COMPLETED;
 			record.response = response;
-			await storage.put(key, record);
+			try {
+				await storage.put(key, record);
+			} catch {
+				// Serialization happens inside put(); on failure serve the response uncached
+			}
 		},
 
 		async delete(key) {
