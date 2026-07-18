@@ -2,7 +2,6 @@ import {
 	type IdempotencyRecord,
 	RECORD_STATUS_COMPLETED,
 	RECORD_STATUS_PROCESSING,
-	type StoredResponse,
 } from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 

@@ -1,9 +1,9 @@
 import { createMiddleware } from "hono/factory";
 import { getHonoProblemDetails } from "./compat.js";
 import {
+	clampHttpStatus,
 	IdempotencyErrors,
 	type ProblemDetail,
-	clampHttpStatus,
 	problemResponse,
 } from "./errors.js";
 import { generateFingerprint, timingSafeEqual } from "./fingerprint.js";
