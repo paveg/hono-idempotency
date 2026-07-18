@@ -208,4 +208,16 @@ describe("durableObjectStore", () => {
 		vi.advanceTimersByTime(1);
 		expect(await store.get("key-1")).toBeUndefined();
 	});
+
+	it("complete() is a no-op when storage.put() throws", async () => {
+		const storage = createMockStorage();
+		const store = durableObjectStore({ storage });
+		await store.lock("key-1", makeRecord("key-1"));
+
+		storage.put = async () => {
+			throw new Error("storage failure");
+		};
+
+		await expect(store.complete("key-1", makeResponse())).resolves.toBeUndefined();
+	});
 });
