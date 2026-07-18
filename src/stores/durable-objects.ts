@@ -1,4 +1,4 @@
-import { type IdempotencyRecord, RECORD_STATUS_COMPLETED, type StoredResponse } from "../types.js";
+import { type IdempotencyRecord, RECORD_STATUS_COMPLETED } from "../types.js";
 import type { IdempotencyStore } from "./types.js";
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours in ms
