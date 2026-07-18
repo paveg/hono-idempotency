@@ -1263,7 +1263,7 @@ describe("idempotency middleware", () => {
 		const store = memoryStore();
 		const app = new Hono();
 		app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
-		app.post("/api/with-cookie", (c) => {
+		app.post("/api/with-cookie", (_c) => {
 			return new Response("ok", {
 				status: 200,
 				headers: {
@@ -1326,7 +1326,7 @@ describe("idempotency middleware", () => {
 			});
 
 			// Default header ignored — each request is fresh
-			const res1 = await app.request("/api/counter", {
+			await app.request("/api/counter", {
 				method: "POST",
 				headers: { "Idempotency-Key": "key-ignored" },
 			});
@@ -1485,7 +1485,7 @@ describe("idempotency middleware", () => {
 			const store = memoryStore();
 			const app = new Hono();
 			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
-			app.post("/api/status-299", (c) => new Response("edge", { status: 299 }));
+			app.post("/api/status-299", (_c) => new Response("edge", { status: 299 }));
 
 			const key = "key-299";
 			await app.request("/api/status-299", {
@@ -1505,7 +1505,7 @@ describe("idempotency middleware", () => {
 			app.use("/api/*", idempotency({ store, dangerouslyAllowGlobalKeys: true }));
 			app.post(
 				"/api/status-300",
-				(c) => new Response(null, { status: 300, headers: { Location: "/other" } }),
+				(_c) => new Response(null, { status: 300, headers: { Location: "/other" } }),
 			);
 
 			const key = "key-300";
