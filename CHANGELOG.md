@@ -1,5 +1,13 @@
 # hono-idempotency
 
+## 0.9.1
+
+### Patch Changes
+
+- [#161](https://github.com/paveg/hono-idempotency/pull/161) [`d81f0bd`](https://github.com/paveg/hono-idempotency/commit/d81f0bd69ef6cdbf68c7d4562469dcb270560e6e) Thanks [@paveg](https://github.com/paveg)! - Internal cleanup from the Biome 2 migration: removed unused type-only imports in four store adapters and reordered module exports. No behavioral change, but bundle module ordering in `dist` differs from the previous release.
+
+- [#163](https://github.com/paveg/hono-idempotency/pull/163) [`c1a83b9`](https://github.com/paveg/hono-idempotency/commit/c1a83b9a361898a9bac3c8a272789c8624e4b92a) Thanks [@paveg](https://github.com/paveg)! - Harden store adapters against corrupt data and failing writes: `kvStore` now treats corrupt JSON in KV as a cache miss instead of throwing (`get`/`lock`/`complete` and the lock read-back), and `durableObjectStore.complete()` no longer propagates a `storage.put()` failure — the response is served uncached so the client can retry with the same key.
+
 ## 0.9.0
 
 ### Minor Changes
