@@ -145,7 +145,7 @@
 		"@vitest/coverage-v8": "^4.1.8",
 		"hono": "^4.13.7",
 		"hono-problem-details": "0.11.0",
-		"lefthook": "2.1.12",
+		"lefthook": "2.1.16",
 		"tsup": "^8.5.1",
 		"typescript": "^6.0.3",
 		"vitest": "^4.1.8"
